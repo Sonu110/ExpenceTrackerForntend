@@ -14,7 +14,7 @@ import { useSettingsStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Category, TransactionType } from '@/lib/types';
-import { toast } from 'sonner';
+
 
 export default function CategoriesPage() {
   const { categories, transactions, loading, refetch } = useAllData();

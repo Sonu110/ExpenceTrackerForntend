@@ -1,17 +1,24 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Home, Settings, FolderOpen, Plus, Wallet, Receipt } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { usePayFlow } from '@/components/pay-flow/pay-flow-provider';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  Home,
+  Settings,
+  FolderOpen,
+  Plus,
+  Wallet,
+  Receipt,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { usePayFlow } from "@/components/pay-flow/pay-flow-provider";
 
 const desktopNavItems = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/categories', label: 'Categories', icon: FolderOpen },
-  { href: '/receipts', label: 'Receipts', icon: Receipt },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: "/", label: "Home", icon: Home },
+  { href: "/categories", label: "Categories", icon: FolderOpen },
+  { href: "/receipts", label: "Receipts", icon: Receipt },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function BottomNav() {
@@ -39,10 +46,10 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                   active
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
                 <item.icon className="h-5 w-5" />
@@ -75,8 +82,8 @@ export function BottomNav() {
           <Link
             href="/"
             className={cn(
-              'flex w-16 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors',
-              pathname === '/' ? 'text-primary' : 'text-muted-foreground'
+              "flex w-16 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors",
+              pathname === "/" ? "text-primary" : "text-muted-foreground",
             )}
           >
             <Home className="h-5 w-5" />
@@ -85,11 +92,9 @@ export function BottomNav() {
 
           {/* Pay — center floating circle */}
           <motion.button
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
+            whileTap={{ opacity: 0.8 }}
             onClick={openPayFlow}
             className="absolute -top-6 left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full gradient-pay shadow-glow ring-4 ring-background"
-            aria-label="Add transaction"
           >
             <Plus className="h-6 w-6 text-white" />
           </motion.button>
@@ -98,8 +103,10 @@ export function BottomNav() {
           <Link
             href="/categories"
             className={cn(
-              'flex w-16 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors',
-              pathname === '/categories' ? 'text-primary' : 'text-muted-foreground'
+              "flex w-16 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors",
+              pathname === "/categories"
+                ? "text-primary"
+                : "text-muted-foreground",
             )}
           >
             <FolderOpen className="h-5 w-5" />

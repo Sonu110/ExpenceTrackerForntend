@@ -21,13 +21,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { TransactionType } from '@/lib/types';
+import { useAuthStore } from '@/zustandStore/login';
 
 type TypeFilter = 'all' | TransactionType;
 
 export default function DashboardPage() {
   const { categories, transactions, loading } = useAllData();
-  const { currency } = useSettingsStore();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const user = useAuthStore((s) => s.user);
+  console.log(user);
+  
 
   const filteredTransactions = useMemo(() => {
     if (typeFilter === 'all') return transactions;
@@ -60,7 +63,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <PageContainer
-        title="Dashboard"
+        title={`${user?.username}`}
         description="Track your expenses and investments"
         action={<HeaderActions />}
       >
@@ -83,7 +86,7 @@ export default function DashboardPage() {
 
   return (
     <PageContainer
-      title="Dashboard"
+     title={`${user?.username.toUpperCase()} `}
       description="Track your expenses and investments"
       action={<HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />}
     >

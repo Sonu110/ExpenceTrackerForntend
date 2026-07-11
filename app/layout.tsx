@@ -1,9 +1,10 @@
-import './globals.css';
+import './globals.css'
 import type { Metadata } from 'next';
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { AppShell } from '@/components/layout/app-shell';
+import { AuthProvider } from '@/components/AuthProvider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jakarta = Plus_Jakarta_Sans({
@@ -25,15 +26,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${jakarta.variable} font-sans antialiased`}>
+        <AuthProvider>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange={false}
         >
+
+          
           <AppShell>{children}</AppShell>
           <Toaster position="top-center" />
         </ThemeProvider>
+          </AuthProvider>
       </body>
     </html>
   );
