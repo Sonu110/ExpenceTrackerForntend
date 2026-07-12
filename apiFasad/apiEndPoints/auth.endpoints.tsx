@@ -7,9 +7,8 @@ export const ENDPOINTS = {
   },
   USERS: {  
     userCategories: "/api/auth/categories",
-    userDetails: "/api/auth/userProfiles",
-    userUpdate: "/api/auth/userUpdate",
     userTransaction: "/api/auth/transactions",
+    userReceipt: "/api/auth/receipts",
     
   },
  

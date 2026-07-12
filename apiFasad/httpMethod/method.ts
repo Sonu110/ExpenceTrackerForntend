@@ -7,9 +7,10 @@ export const GET = <T>(url: string, params?: any) =>
   });
 
 export const POST = <T>(url: string, data?: any) =>
+  
   fetchClient<T>(url, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data,
   });
 
 export const PUT = <T>(url: string, data?: any) =>

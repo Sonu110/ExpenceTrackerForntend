@@ -1,165 +1,199 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, AlertTriangle, Upload, X, ImageIcon, Wallet, CreditCard, Smartphone, CalendarIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DynamicIcon } from '@/components/dynamic-icon';
-import { useSettingsStore } from '@/lib/store';
-import { formatCurrency, formatDate } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import type { TransactionType, Category, PaymentMethod } from '@/lib/types';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-  import { getUserCategories } from "@/apiFasad/apiCalls/user";
-import { createTransaction } from '@/apiFasad/apiCalls/userTransaction';
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft,
+  Check,
+  AlertTriangle,
+  Upload,
+  X,
+  ImageIcon,
+  Wallet,
+  CreditCard,
+  Smartphone,
+  CalendarIcon,
+} from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DynamicIcon } from "@/components/dynamic-icon";
+import { useSettingsStore } from "@/lib/store";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import type { TransactionType, Category, PaymentMethod } from "@/lib/types";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { getUserCategories } from "@/apiFasad/apiCalls/user";
+import { createTransaction } from "@/apiFasad/apiCalls/userTransaction";
 interface PayFlowModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = 'type' | 'category' | 'form';
+type Step = "type" | "category" | "form";
 
 export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
-  const [step, setStep] = useState<Step>('type');
-  const [type, setType] = useState<TransactionType>('expense');
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [step, setStep] = useState<Step>("type");
+  const [type, setType] = useState<TransactionType>("expense");
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
   const { currency } = useSettingsStore();
 
   // Form state
-  const [itemName, setItemName] = useState('');
-  const [amount, setAmount] = useState('');
+  const [itemName, setItemName] = useState("");
+  const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
-  const [receipt, setReceipt] = useState<string | null>(null);
-  const [notes, setNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
+  // const [receipt, setReceipt] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("upi");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [receipt, setReceipt] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
-const [categories, setCategories] = useState<any[]>([]);
-const [loadingCategories, setLoadingCategories] = useState(false);
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
 
-const fetchCategories = async () => {
-  try {
-    setLoadingCategories(true);
+      const res = await getUserCategories();
 
-    const res = await getUserCategories();
-
-    setCategories(res.data || []);
-  } catch (err) {
-    console.error(err);
-    toast.error("Failed to load categories");
-  } finally {
-    setLoadingCategories(false);
-  }
-};
-
-useEffect(() => {
-  if (open) {
-    fetchCategories();
-  }
-}, [open]);
+      setCategories(res.data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load categories");
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
-      setStep('type');
-      setType('expense');
+      fetchCategories();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setStep("type");
+      setType("expense");
       setSelectedCategory(null);
-      setItemName('');
-      setAmount('');
+      setItemName("");
+      setAmount("");
       setDate(new Date());
       setReceipt(null);
-      setNotes('');
-      setPaymentMethod('upi');
+      setNotes("");
+      setPaymentMethod("upi");
       setErrors({});
     }
   }, [open]);
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
-const getCategorySpent = (categoryId: string): number => {
-  const category = categories.find(
-    (c) => c._id === categoryId || c.id === categoryId
-  );
+  const getCategorySpent = (categoryId: string): number => {
+    const category = categories.find(
+      (c) => c._id === categoryId || c.id === categoryId,
+    );
 
-  return Number(category?.totalAmountSpend ?? 0);
-};
+    return Number(category?.totalAmountSpend ?? 0);
+  };
 
-const isCategoryDisabled = (cat: Category) =>
-  type === "expense" &&
-  Number(cat.monthlyBudget ?? 0) > 0 &&
-  Number(cat.totalAmountSpend ?? 0) >= Number(cat.monthlyBudget);
+  const isCategoryDisabled = (cat: Category) =>
+    type === "expense" &&
+    Number(cat.monthlyBudget ?? 0) > 0 &&
+    Number(cat.totalAmountSpend ?? 0) >= Number(cat.monthlyBudget);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Please upload a JPG, PNG, or WEBP image');
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Please upload JPG, PNG or WEBP");
       return;
     }
+
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be under 2MB');
+      toast.error("Image must be under 2MB");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setReceipt(reader.result as string);
-    reader.readAsDataURL(file);
+
+    setReceipt(file);
+
+    const imageUrl = URL.createObjectURL(file);
+    setPreview(imageUrl);
   };
 
- const validate = (): boolean => {
-  const errs: Record<string, string> = {};
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
 
-  if (!itemName.trim()) errs.itemName = 'Item name is required';
+    if (!itemName.trim()) errs.itemName = "Item name is required";
 
-  const amt = parseFloat(amount);
+    const amt = parseFloat(amount);
 
-  if (!amount || isNaN(amt) || amt <= 0) {
-    errs.amount = 'Amount must be greater than 0';
-  }
-
-  if (selectedCategory?.monthlyBudget) {
-    const spent = Number(selectedCategory.totalAmountSpend ?? 0);
-
-    if (spent + amt > selectedCategory.monthlyBudget) {
-      errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(
-        Math.max(0, selectedCategory.monthlyBudget - spent),
-        currency
-      )}`;
+    if (!amount || isNaN(amt) || amt <= 0) {
+      errs.amount = "Amount must be greater than 0";
     }
-  }
 
-  setErrors(errs);
-  return Object.keys(errs).length === 0;
-};
+    if (selectedCategory?.monthlyBudget) {
+      const spent = Number(selectedCategory.totalAmountSpend ?? 0);
+
+      if (spent + amt > selectedCategory.monthlyBudget) {
+        errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(
+          Math.max(0, selectedCategory.monthlyBudget - spent),
+          currency,
+        )}`;
+      }
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const handleSubmit = async () => {
     if (!selectedCategory) return;
     if (!validate()) return;
     setSubmitting(true);
     console.log(selectedCategory);
-    
+
     try {
-      await createTransaction({
-        category_id: selectedCategory._id,
-        type,
-        item_name: itemName.trim(),
-        amount: parseFloat(amount),
-        date: format(date, 'yyyy-MM-dd'),
-        receipt_url: receipt,
-        notes: notes.trim() || null,
-        payment_method: paymentMethod,
-      });
-      toast.success(`${type === 'expense' ? 'Expense' : 'Investment'} added successfully`);
+      const formData = new FormData();
+
+formData.append("category_id", selectedCategory._id);
+formData.append("type", type);
+formData.append("item_name", itemName.trim());
+formData.append("amount", amount);
+formData.append("date", format(date, "yyyy-MM-dd"));
+formData.append("notes", notes.trim());
+formData.append("payment_method", paymentMethod);
+
+if (receipt) {
+  formData.append("receipt", receipt);
+}
+
+for (const [key, value] of formData.entries()) {
+  console.log(key, value);
+}
+
+await createTransaction(formData);
+      toast.success(
+        `${type === "expense" ? "Expense" : "Investment"} added successfully`,
+      );
       onOpenChange(false);
     } catch (err) {
-      toast.error('Failed to save transaction');
+      toast.error("Failed to save transaction");
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -173,9 +207,9 @@ const isCategoryDisabled = (cat: Category) =>
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-          {step !== 'type' && (
+          {step !== "type" && (
             <button
-              onClick={() => setStep(step === 'form' ? 'category' : 'type')}
+              onClick={() => setStep(step === "form" ? "category" : "type")}
               className="rounded-lg p-1.5 hover:bg-accent transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -183,22 +217,24 @@ const isCategoryDisabled = (cat: Category) =>
           )}
           <div className="flex-1">
             <p className="text-sm font-semibold">
-              {step === 'type' && 'New Transaction'}
-              {step === 'category' && `Select ${type} category`}
-              {step === 'form' && 'Transaction details'}
+              {step === "type" && "New Transaction"}
+              {step === "category" && `Select ${type} category`}
+              {step === "form" && "Transaction details"}
             </p>
-            <p className="text-xs text-muted-foreground">Step {step === 'type' ? 1 : step === 'category' ? 2 : 3} of 3</p>
+            <p className="text-xs text-muted-foreground">
+              Step {step === "type" ? 1 : step === "category" ? 2 : 3} of 3
+            </p>
           </div>
           {/* Progress dots */}
           <div className="flex gap-1.5">
-            {['type', 'category', 'form'].map((s, i) => {
-              const stepIndex = ['type', 'category', 'form'].indexOf(step);
+            {["type", "category", "form"].map((s, i) => {
+              const stepIndex = ["type", "category", "form"].indexOf(step);
               return (
                 <div
                   key={s}
                   className={cn(
-                    'h-1.5 rounded-full transition-all',
-                    i <= stepIndex ? 'w-6 bg-primary' : 'w-1.5 bg-muted'
+                    "h-1.5 rounded-full transition-all",
+                    i <= stepIndex ? "w-6 bg-primary" : "w-1.5 bg-muted",
                   )}
                 />
               );
@@ -209,7 +245,7 @@ const isCategoryDisabled = (cat: Category) =>
         <div className="max-h-[70vh] overflow-y-auto">
           <AnimatePresence mode="wait">
             {/* Step 1: Type selection */}
-            {step === 'type' && (
+            {step === "type" && (
               <motion.div
                 key="type"
                 initial={{ opacity: 0, x: 20 }}
@@ -217,10 +253,15 @@ const isCategoryDisabled = (cat: Category) =>
                 exit={{ opacity: 0, x: -20 }}
                 className="p-5"
               >
-                <p className="mb-4 text-center text-sm text-muted-foreground">Choose transaction type</p>
+                <p className="mb-4 text-center text-sm text-muted-foreground">
+                  Choose transaction type
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <button
-                    onClick={() => { setType('expense'); setStep('category'); }}
+                    onClick={() => {
+                      setType("expense");
+                      setStep("category");
+                    }}
                     className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-border p-6 transition-all hover:border-primary hover:bg-primary/5"
                   >
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-500 transition-transform group-hover:scale-110">
@@ -228,11 +269,16 @@ const isCategoryDisabled = (cat: Category) =>
                     </div>
                     <div className="text-center">
                       <p className="font-semibold">Expense</p>
-                      <p className="text-xs text-muted-foreground">Track spending</p>
+                      <p className="text-xs text-muted-foreground">
+                        Track spending
+                      </p>
                     </div>
                   </button>
                   <button
-                    onClick={() => { setType('investment'); setStep('category'); }}
+                    onClick={() => {
+                      setType("investment");
+                      setStep("category");
+                    }}
                     className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-border p-6 transition-all hover:border-primary hover:bg-primary/5"
                   >
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10 text-green-500 transition-transform group-hover:scale-110">
@@ -240,7 +286,9 @@ const isCategoryDisabled = (cat: Category) =>
                     </div>
                     <div className="text-center">
                       <p className="font-semibold">Investment</p>
-                      <p className="text-xs text-muted-foreground">Grow wealth</p>
+                      <p className="text-xs text-muted-foreground">
+                        Grow wealth
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -248,7 +296,7 @@ const isCategoryDisabled = (cat: Category) =>
             )}
 
             {/* Step 2: Category selection */}
-            {step === 'category' && (
+            {step === "category" && (
               <motion.div
                 key="category"
                 initial={{ opacity: 0, x: 20 }}
@@ -265,30 +313,51 @@ const isCategoryDisabled = (cat: Category) =>
                       <button
                         key={cat.id}
                         disabled={disabled}
-                        onClick={() => { setSelectedCategory(cat); setStep('form'); }}
+                        onClick={() => {
+                          setSelectedCategory(cat);
+                          setStep("form");
+                        }}
                         className={cn(
-                          'group relative flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-all',
+                          "group relative flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-all",
                           disabled
-                            ? 'cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/20'
-                            : 'border-border hover:border-primary hover:bg-primary/5'
+                            ? "cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/20"
+                            : "border-border hover:border-primary hover:bg-primary/5",
                         )}
                       >
                         <div
                           className="flex h-12 w-12 items-center justify-center rounded-xl transition-transform group-hover:scale-110"
-                          style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
+                          style={{
+                            backgroundColor: `${cat.color}20`,
+                            color: cat.color,
+                          }}
                         >
                           <DynamicIcon name={cat.icon} className="h-6 w-6" />
                         </div>
                         <p className="text-sm font-medium">{cat.name}</p>
-                         {limit==null && (
-
-                          <p className={cn('text-xs', disabled ? 'text-red-500' : 'text-muted-foreground')}>
-                           Unlimited total {spent}
+                        {limit == null && (
+                          <p
+                            className={cn(
+                              "text-xs",
+                              disabled
+                                ? "text-red-500"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            Unlimited total {spent}
                           </p>
                         )}
-                        { limit && (
-                          <p className={cn('text-xs', disabled ? 'text-red-500' : 'text-muted-foreground')}>
-                            {disabled ? 'Limit reached' : `${formatCurrency(spent, currency)} / ${formatCurrency(limit, currency)}`}
+                        {limit && (
+                          <p
+                            className={cn(
+                              "text-xs",
+                              disabled
+                                ? "text-red-500"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {disabled
+                              ? "Limit reached"
+                              : `${formatCurrency(spent, currency)} / ${formatCurrency(limit, currency)}`}
                           </p>
                         )}
                         {disabled && (
@@ -309,7 +378,7 @@ const isCategoryDisabled = (cat: Category) =>
             )}
 
             {/* Step 3: Transaction form */}
-            {step === 'form' && selectedCategory && (
+            {step === "form" && selectedCategory && (
               <motion.div
                 key="form"
                 initial={{ opacity: 0, x: 20 }}
@@ -321,19 +390,30 @@ const isCategoryDisabled = (cat: Category) =>
                 <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/50 p-3">
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: `${selectedCategory.color}20`, color: selectedCategory.color }}
+                    style={{
+                      backgroundColor: `${selectedCategory.color}20`,
+                      color: selectedCategory.color,
+                    }}
                   >
-                    <DynamicIcon name={selectedCategory.icon} className="h-5 w-5" />
+                    <DynamicIcon
+                      name={selectedCategory.icon}
+                      className="h-5 w-5"
+                    />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{selectedCategory.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{type}</p>
+                    <p className="text-sm font-medium">
+                      {selectedCategory.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {type}
+                    </p>
                   </div>
 
-
-    {selectedCategory.monthlyBudget===null && (
+                  {selectedCategory.monthlyBudget === null && (
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Total spend till</p>
+                      <p className="text-xs text-muted-foreground">
+                        Total spend till
+                      </p>
                       <p className="text-sm font-semibold text-green-500">
                         {selectedCategory?.totalAmountSpend}
                       </p>
@@ -344,8 +424,14 @@ const isCategoryDisabled = (cat: Category) =>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-green-500">
-                        {formatCurrency(Math.max(0, selectedCategory.monthlyBudget -
-Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
+                        {formatCurrency(
+                          Math.max(
+                            0,
+                            selectedCategory.monthlyBudget -
+                              Number(selectedCategory.totalAmountSpend ?? 0),
+                          ),
+                          currency,
+                        )}
                       </p>
                     </div>
                   )}
@@ -359,9 +445,11 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                     value={itemName}
                     onChange={(e) => setItemName(e.target.value)}
                     placeholder="e.g. Grocery shopping"
-                    className={errors.itemName ? 'border-red-500' : ''}
+                    className={errors.itemName ? "border-red-500" : ""}
                   />
-                  {errors.itemName && <p className="text-xs text-red-500">{errors.itemName}</p>}
+                  {errors.itemName && (
+                    <p className="text-xs text-red-500">{errors.itemName}</p>
+                  )}
                 </div>
 
                 {/* Amount */}
@@ -369,7 +457,15 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                   <Label htmlFor="amount">Amount</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '¥'}
+                      {currency === "INR"
+                        ? "₹"
+                        : currency === "USD"
+                          ? "$"
+                          : currency === "EUR"
+                            ? "€"
+                            : currency === "GBP"
+                              ? "£"
+                              : "¥"}
                     </span>
                     <Input
                       id="amount"
@@ -378,10 +474,12 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="0.00"
-                      className={`pl-8 ${errors.amount ? 'border-red-500' : ''}`}
+                      className={`pl-8 ${errors.amount ? "border-red-500" : ""}`}
                     />
                   </div>
-                  {errors.amount && <p className="text-xs text-red-500">{errors.amount}</p>}
+                  {errors.amount && (
+                    <p className="text-xs text-red-500">{errors.amount}</p>
+                  )}
                 </div>
 
                 {/* Date */}
@@ -389,7 +487,10 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                   <Label>Date</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formatDate(date)}
                       </Button>
@@ -409,20 +510,22 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                 <div className="space-y-1.5">
                   <Label>Payment Method</Label>
                   <div className="grid grid-cols-3 gap-2">
-                    {([
-                      { value: 'cash', label: 'Cash', icon: Wallet },
-                      { value: 'card', label: 'Card', icon: CreditCard },
-                      { value: 'upi', label: 'UPI', icon: Smartphone },
-                    ] as const).map((opt) => (
+                    {(
+                      [
+                        { value: "cash", label: "Cash", icon: Wallet },
+                        { value: "card", label: "Card", icon: CreditCard },
+                        { value: "upi", label: "UPI", icon: Smartphone },
+                      ] as const
+                    ).map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
                         onClick={() => setPaymentMethod(opt.value)}
                         className={cn(
-                          'flex flex-col items-center gap-1.5 rounded-xl border-2 py-3 transition-all',
+                          "flex flex-col items-center gap-1.5 rounded-xl border-2 py-3 transition-all",
                           paymentMethod === opt.value
-                            ? 'border-primary bg-primary/5 text-primary'
-                            : 'border-border hover:bg-accent'
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-border hover:bg-accent",
                         )}
                       >
                         <opt.icon className="h-5 w-5" />
@@ -435,12 +538,20 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                 {/* Receipt upload */}
                 <div className="space-y-1.5">
                   <Label>Receipt (optional)</Label>
-                  {receipt ? (
+                  {preview ? (
                     <div className="relative">
-                      <img src={receipt} alt="Receipt" className="h-32 w-full rounded-lg object-cover" />
+                      <img
+                        src={preview}
+                        alt="Receipt"
+                        className="h-32 w-full rounded-lg object-cover"
+                      />
+
                       <button
-                        onClick={() => setReceipt(null)}
-                        className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                        onClick={() => {
+                          setReceipt(null);
+                          setPreview(null);
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -450,9 +561,16 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                       <ImageIcon className="h-8 w-8 text-muted-foreground" />
                       <div className="text-center">
                         <p className="text-sm font-medium">Upload receipt</p>
-                        <p className="text-xs text-muted-foreground">JPG, PNG, or WEBP (max 2MB)</p>
+                        <p className="text-xs text-muted-foreground">
+                          JPG, PNG, or WEBP (max 2MB)
+                        </p>
                       </div>
-                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileUpload} className="hidden" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
                     </label>
                   )}
                 </div>
@@ -476,7 +594,9 @@ Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                   disabled={submitting}
                   className="w-full gradient-pay text-white shadow-glow"
                 >
-                  {submitting ? 'Saving...' : `Add ${type === 'expense' ? 'Expense' : 'Investment'}`}
+                  {submitting
+                    ? "Saving..."
+                    : `Add ${type === "expense" ? "Expense" : "Investment"}`}
                 </Button>
               </motion.div>
             )}

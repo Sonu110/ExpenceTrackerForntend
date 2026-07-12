@@ -11,6 +11,10 @@ export const getTransaction = () =>
 export const deteleTransaction = (id:string) =>
   DELETE<any[]>(`${ENDPOINTS.USERS.userTransaction}/${id}`);
 
+export const getReceipts = () =>
+  GET<any[]>(`${ENDPOINTS.USERS.userReceipt}`);
+
+
 
 
 

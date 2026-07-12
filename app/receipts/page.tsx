@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Search, ImageIcon, Wallet, CreditCard, Smartphone } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
@@ -9,39 +9,82 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DynamicIcon } from '@/components/dynamic-icon';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { useAllData } from '@/hooks/use-data';
 import { useSettingsStore } from '@/lib/store';
 import { formatCurrency, formatDate } from '@/lib/format';
 import type { PaymentMethod } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import type { TransactionWithCategory } from '@/lib/types';
+import { getReceipts } from '@/apiFasad/apiCalls/userTransaction';
+
+// Setup interface to strictly type the incoming MongoDB layout safely
+interface MongoReceipt {
+  _id: string;
+  imageUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  createdAt: string;
+  transactionId?: {
+    _id: string;
+    type: 'expense' | 'income' | 'investment';
+    title: string;
+    amount: number;
+    note?: string;
+    paymentMethod?: PaymentMethod;
+    // Fallbacks if category metadata wasn't populated or nested on transaction endpoint
+    category?: { name: string; color: string; icon: string }; 
+  };
+}
 
 export default function ReceiptsPage() {
-  const { transactions, loading } = useAllData();
   const { currency } = useSettingsStore();
+  const [receipts, setReceipts] = useState<MongoReceipt[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
-  const receiptTransactions = useMemo(() => {
-    const withReceipts = transactions.filter((t) => t.receipt_url);
-    if (!search) return withReceipts;
-    const q = search.toLowerCase();
-    return withReceipts.filter(
-      (t) =>
-        t.item_name.toLowerCase().includes(q) ||
-        t.category.name.toLowerCase().includes(q) ||
-        formatDate(t.date).toLowerCase().includes(q)
-    );
-  }, [transactions, search]);
+  // 1. Fetch data directly from your populated getReceipts endpoint
+  const fetchReceipts = async () => {
+    try {
+      setLoading(true);
+      const res = await getReceipts();
+      if (res?.data) {
+        setReceipts(res.data);
+      }
+    } catch (error) {
+      console.error("Failed to load receipts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const previewTx = previewIndex !== null ? receiptTransactions[previewIndex] : null;
+  useEffect(() => {
+    fetchReceipts();
+  }, []);
+
+  // 2. Updated Search filtering mapping directly against populated fields
+  const filteredReceipts = useMemo(() => {
+    if (!search) return receipts;
+    const q = search.toLowerCase();
+    return receipts.filter((r) => {
+      const tx = r.transactionId;
+      return (
+        tx?.title?.toLowerCase().includes(q) ||
+        tx?.type?.toLowerCase().includes(q) ||
+        formatDate(r.createdAt).toLowerCase().includes(q)
+      );
+    });
+  }, [receipts, search]);
+
+  const previewTx = previewIndex !== null ? filteredReceipts[previewIndex] : null;
+  console.log(previewTx);
+  
 
   const handlePrev = () => {
-    setPreviewIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : receiptTransactions.length - 1));
+    setPreviewIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : filteredReceipts.length - 1));
   };
 
   const handleNext = () => {
-    setPreviewIndex((prev) => (prev !== null && prev < receiptTransactions.length - 1 ? prev + 1 : 0));
+    setPreviewIndex((prev) => (prev !== null && prev < filteredReceipts.length - 1 ? prev + 1 : 0));
   };
 
   if (loading) {
@@ -58,12 +101,12 @@ export default function ReceiptsPage() {
 
   return (
     <PageContainer title="Receipts" description="View all your uploaded bill receipts">
-      {receiptTransactions.length === 0 ? (
+      {filteredReceipts.length === 0 ? (
         <Card className="flex flex-col items-center justify-center border-0 py-20 shadow-premium">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
             <ImageIcon className="h-8 w-8 text-muted-foreground" />
           </div>
-          <p className="mt-4 text-sm font-medium">No receipts uploaded yet</p>
+          <p className="mt-4 text-sm font-medium">No receipts found</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Upload a receipt image when adding a transaction to see it here
           </p>
@@ -84,68 +127,78 @@ export default function ReceiptsPage() {
           {/* Gallery grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <AnimatePresence>
-              {receiptTransactions.map((t, i) => (
-                <motion.div
-                  key={t.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: i * 0.05 }}
-                  whileHover={{ y: -4 }}
-                  onClick={() => setPreviewIndex(i)}
-                  className="group cursor-pointer"
-                >
-                  <Card className="overflow-hidden border-0 shadow-premium">
-                    {/* Receipt image */}
-                    <div className="relative aspect-[3/4] overflow-hidden">
-                      <img
-                        src={t.receipt_url!}
-                        alt={t.item_name}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                      {/* Type badge */}
-                      <div className="absolute right-2 top-2">
-                        <Badge
-                          variant={t.type === 'expense' ? 'destructive' : 'default'}
-                          className="capitalize"
-                        >
-                          {t.type}
-                        </Badge>
-                      </div>
-                      {/* Overlay info */}
-                      <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                        <p className="truncate text-sm font-semibold">{t.item_name}</p>
-                        <div className="mt-0.5 flex items-center gap-1.5">
-                          <div
-                            className="flex h-5 w-5 items-center justify-center rounded"
-                            style={{ backgroundColor: `${t.category.color}40` }}
-                          >
-                            <DynamicIcon name={t.category.icon} className="h-3 w-3" />
+              {filteredReceipts.map((r, i) => {
+                const tx = r.transactionId;
+                return (
+                  <motion.div
+                    key={r._id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ delay: i * 0.05 }}
+                    whileHover={{ y: -4 }}
+                    onClick={() => setPreviewIndex(i)}
+                    className="group cursor-pointer"
+                  >
+                    <Card className="overflow-hidden border-0 shadow-premium">
+                      {/* Receipt image */}
+                      <div className="relative aspect-[3/4] overflow-hidden">
+                        <img
+                         src={`${process.env.NEXT_PUBLIC_API_URL!}${r.imageUrl}`}
+                          alt={tx?.title || "Receipt"}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                        
+                        {/* Type badge */}
+                        {tx?.type && (
+                          <div className="absolute right-2 top-2">
+                            <Badge
+                              variant={tx.type === 'expense' ? 'destructive' : 'default'}
+                              className="capitalize"
+                            >
+                              {tx.type}
+                            </Badge>
                           </div>
-                          <span className="text-xs opacity-90">{t.category.name}</span>
+                        )}
+
+                        {/* Overlay info */}
+                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                          <p className="truncate text-sm font-semibold">{tx?.title || 'Unnamed Transaction'}</p>
+                          {tx?.category && (
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <div
+                                className="flex h-5 w-5 items-center justify-center rounded"
+                                style={{ backgroundColor: `${tx.category.color}40` }}
+                              >
+                                <DynamicIcon name={tx.category.icon} className="h-3 w-3" />
+                              </div>
+                              <span className="text-xs opacity-90">{tx.category.name}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                    {/* Footer */}
-                    <div className="flex items-center justify-between p-3">
-                      <div className="flex items-center gap-2">
-                        <PaymentMethodIcon method={t.payment_method} />
-                        <span className="text-xs text-muted-foreground">{formatDate(t.date)}</span>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-2">
+                          <PaymentMethodIcon method={tx?.paymentMethod || 'cash'} />
+                          <span className="text-xs text-muted-foreground">{formatDate(r.createdAt)}</span>
+                        </div>
+                        <span
+                          className={cn(
+                            'text-sm font-semibold',
+                            tx?.type === 'expense' ? 'text-red-500' : 'text-green-500'
+                          )}
+                        >
+                          {formatCurrency(Number(tx?.amount || 0), currency)}
+                        </span>
                       </div>
-                      <span
-                        className={cn(
-                          'text-sm font-semibold',
-                          t.type === 'expense' ? 'text-red-500' : 'text-green-500'
-                        )}
-                      >
-                        {formatCurrency(Number(t.amount), currency)}
-                      </span>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         </div>
@@ -157,22 +210,19 @@ export default function ReceiptsPage() {
           <DialogTitle className="sr-only">Receipt preview</DialogTitle>
           {previewTx && (
             <div>
-              {/* Large image */}
-              <div className="relative max-h-[70vh] overflow-hidden">
+              <div className="relative max-h-[70vh] overflow-hidden flex justify-center bg-black/5">
                 <img
-                  src={previewTx.receipt_url!}
-                  alt={previewTx.item_name}
-                  className="w-full object-contain"
+                 src={`${process.env.NEXT_PUBLIC_API_URL!}${previewTx.imageUrl}`}
+                  alt={previewTx.transactionId?.title || "Receipt"}
+                  className="w-full object-contain max-h-[70vh]"
                 />
-                {/* Close */}
                 <button
                   onClick={() => setPreviewIndex(null)}
                   className="absolute right-3 top-3 rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80"
                 >
                   <X className="h-5 w-5" />
                 </button>
-                {/* Nav arrows */}
-                {receiptTransactions.length > 1 && (
+                {filteredReceipts.length > 1 && (
                   <>
                     <button
                       onClick={handlePrev}
@@ -189,49 +239,55 @@ export default function ReceiptsPage() {
                   </>
                 )}
               </div>
-              {/* Details */}
+              
+              {/* Details structure */}
               <div className="space-y-3 p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ backgroundColor: `${previewTx.category.color}20`, color: previewTx.category.color }}
-                    >
-                      <DynamicIcon name={previewTx.category.icon} className="h-5 w-5" />
-                    </div>
+                    {previewTx.transactionId?.category && (
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-xl"
+                        style={{ 
+                          backgroundColor: `${previewTx.transactionId.category.color}20`, 
+                          color: previewTx.transactionId.category.color 
+                        }}
+                      >
+                        <DynamicIcon name={previewTx.transactionId.category.icon} className="h-5 w-5" />
+                      </div>
+                    )}
                     <div>
-                      <p className="font-semibold">{previewTx.item_name}</p>
-                      <p className="text-xs text-muted-foreground">{previewTx.category.name}</p>
+                      <p className="font-semibold">{previewTx.transactionId?.title || 'Unnamed Entry'}</p>
+                      <p className="text-xs text-muted-foreground">{previewTx.transactionId?.category?.name || 'No category'}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={cn('text-lg font-bold', previewTx.type === 'expense' ? 'text-red-500' : 'text-green-500')}>
-                      {formatCurrency(Number(previewTx.amount), currency)}
+                    <p className={cn('text-lg font-bold', previewTx.transactionId?.type === 'expense' ? 'text-red-500' : 'text-green-500')}>
+                      {formatCurrency(Number(previewTx.transactionId?.amount || 0), currency)}
                     </p>
-                    <Badge variant="outline" className="mt-1 capitalize">{previewTx.type}</Badge>
+                    <Badge variant="outline" className="mt-1 capitalize">{previewTx.transactionId?.type || 'expense'}</Badge>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
                   <div>
-                    <p className="text-xs text-muted-foreground">Date</p>
-                    <p className="font-medium">{formatDate(previewTx.date)}</p>
+                    <p className="text-xs text-muted-foreground">Date Uploaded</p>
+                    <p className="font-medium">{formatDate(previewTx.createdAt)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <p className="font-medium capitalize">{previewTx.status}</p>
+                    <p className="text-xs text-muted-foreground">File Size</p>
+                    <p className="font-medium">{(previewTx.fileSize / 1024).toFixed(1)} KB</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Payment</p>
+                    <p className="text-xs text-muted-foreground">Payment Method</p>
                     <div className="flex items-center gap-1.5 font-medium">
-                      <PaymentMethodIcon method={previewTx.payment_method} />
-                      <span className="capitalize">{previewTx.payment_method}</span>
+                      <PaymentMethodIcon method={previewTx.transactionId?.paymentMethod || 'cash'} />
+                      <span className="capitalize">{previewTx.transactionId?.paymentMethod || 'cash'}</span>
                     </div>
                   </div>
                 </div>
-                {previewTx.notes && (
+                {previewTx.transactionId?.note && (
                   <div className="border-t border-border pt-3">
                     <p className="text-xs text-muted-foreground">Notes</p>
-                    <p className="mt-0.5 text-sm">{previewTx.notes}</p>
+                    <p className="mt-0.5 text-sm">{previewTx.transactionId.note}</p>
                   </div>
                 )}
               </div>

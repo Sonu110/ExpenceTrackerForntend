@@ -6,12 +6,12 @@ export const getUsers = () =>
   GET<any[]>(ENDPOINTS.AUTH.ME);
 
 
-export const getUsersDetails = () =>
-  GET<any[]>(ENDPOINTS.USERS.userDetails);
+// export const getUsersDetails = () =>
+//   GET<any[]>(ENDPOINTS.USERS.userDetails);
 
 
-export const updateUserDetails = (payload:any) =>
-  PUT(ENDPOINTS.USERS.userUpdate, payload);
+// export const updateUserDetails = (payload:any) =>
+//   PUT(ENDPOINTS.USERS.userUpdate, payload);
 
 
 

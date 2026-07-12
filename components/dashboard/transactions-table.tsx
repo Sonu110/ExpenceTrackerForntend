@@ -66,12 +66,14 @@ export function TransactionsTable({
   transactions: rawInput, onDelete
 }: TransactionsTableProps) {
   const { currency } = useSettingsStore();
+ 
+  
 
   const transactions = useMemo(
     () => normalizeTransactions(rawInput),
     [rawInput],
   );
-
+ console.log(transactions);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
@@ -383,11 +385,13 @@ export function TransactionsTable({
                     <td className="px-4 py-3 text-center">
                       {t.receipt_url ? (
                         <button
-                          onClick={() => setPreviewImage(t.receipt_url)}
+                          onClick={() => setPreviewImage(`${process.env.NEXT_PUBLIC_API_URL!}${t.receipt_url?.imageUrl}`)}
                           className="inline-flex"
                         >
                           <img
-                            src={t.receipt_url}
+                           src={`${process.env.NEXT_PUBLIC_API_URL!}${t.receipt_url?.imageUrl}`}
+                          
+                            // src={t.receipt_url?.imageUrl}
                             alt="Receipt"
                             className="h-10 w-10 rounded-lg object-cover ring-1 ring-border"
                           />
@@ -476,7 +480,7 @@ export function TransactionsTable({
                         className="mt-1 inline-flex"
                       >
                         <img
-                          src={t.receipt_url}
+                         src={`${process.env.NEXT_PUBLIC_API_URL!}${t.receipt_url?.imageUrl}`}
                           alt="Receipt"
                           className="h-8 w-8 rounded object-cover"
                         />
