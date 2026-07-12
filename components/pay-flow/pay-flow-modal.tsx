@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import type { TransactionType, Category, PaymentMethod } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-
+  import { getUserCategories } from "@/apiFasad/apiCalls/user";
 interface PayFlowModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,7 +31,6 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
   const [step, setStep] = useState<Step>('type');
   const [type, setType] = useState<TransactionType>('expense');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const { categories, transactions, refetch } = useAllData();
   const { currency } = useSettingsStore();
 
   // Form state
@@ -43,6 +42,31 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+
+const [categories, setCategories] = useState<any[]>([]);
+const [loadingCategories, setLoadingCategories] = useState(false);
+
+const fetchCategories = async () => {
+  try {
+    setLoadingCategories(true);
+
+    const res = await getUserCategories();
+
+    setCategories(res.data || []);
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to load categories");
+  } finally {
+    setLoadingCategories(false);
+  }
+};
+
+useEffect(() => {
+  if (open) {
+    fetchCategories();
+  }
+}, [open]);
 
   useEffect(() => {
     if (open) {
@@ -61,15 +85,15 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
-  const getCategorySpent = (categoryId: string): number => {
-    return transactions
-      .filter((t) => t.category_id === categoryId && t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-  };
+ const getCategorySpent = (categoryId: string): number => {
+  return categories
+    .filter((t) => t.category_id === categoryId && t.type === 'expense')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+};
 
   const isCategoryDisabled = (cat: Category): boolean => {
-    if (type !== 'expense' || !cat.budget_limit) return false;
-    return getCategorySpent(cat.id) >= cat.budget_limit;
+    if (type !== 'expense' || !cat.monthlyBudget) return false;
+    return getCategorySpent(cat.id) >= cat.monthlyBudget;
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,10 +117,10 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
     if (!itemName.trim()) errs.itemName = 'Item name is required';
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) errs.amount = 'Amount must be greater than 0';
-    if (type === 'expense' && selectedCategory?.budget_limit) {
+    if (type === 'expense' && selectedCategory?.monthlyBudget) {
       const spent = getCategorySpent(selectedCategory.id);
-      if (spent + amt > selectedCategory.budget_limit) {
-        errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(selectedCategory.budget_limit - spent, currency)}`;
+      if (spent + amt > selectedCategory.monthlyBudget) {
+        errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(selectedCategory.monthlyBudget - spent, currency)}`;
       }
     }
     setErrors(errs);
@@ -224,7 +248,7 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
                   {filteredCategories.map((cat) => {
                     const disabled = isCategoryDisabled(cat);
                     const spent = getCategorySpent(cat.id);
-                    const limit = cat.budget_limit;
+                    const limit = cat.monthlyBudget;
                     return (
                       <button
                         key={cat.id}
@@ -287,11 +311,11 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
                     <p className="text-sm font-medium">{selectedCategory.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{type}</p>
                   </div>
-                  {type === 'expense' && selectedCategory.budget_limit && (
+                  {type === 'expense' && selectedCategory.monthlyBudget && (
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-green-500">
-                        {formatCurrency(Math.max(0, selectedCategory.budget_limit - getCategorySpent(selectedCategory.id)), currency)}
+                        {formatCurrency(Math.max(0, selectedCategory.monthlyBudget - getCategorySpent(selectedCategory.id)), currency)}
                       </p>
                     </div>
                   )}

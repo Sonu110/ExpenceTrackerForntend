@@ -6,30 +6,12 @@ export const ENDPOINTS = {
     ME: "/api/auth/me",
   },
   USERS: {  
-    userData: "/api/auth/user",
+    userCategories: "/api/auth/categories",
     userDetails: "/api/auth/userProfiles",
     userUpdate: "/api/auth/userUpdate",
     userTrackOrder: "/api/auth/ordersTrack",
     
   },
-  ORDERS: {
-    allFoxesOrder :"/api/auth/all/forex-orders"
-  },
-   BUYSELLCURRANCY: {  
-    createOrder: "/api/auth/createOrder",
-  },
-  ADMIN:
-  {
-    allUserData: '/api/auth/admin/users',
-    allUserOrderData: '/api/auth/admin/orders'  
-  },
-
-  NOTIFICATION: {
-    allNotification: "/api/auth/notification",
-    markOneRead: "/api/auth/notification/read-one",
-    markAllRead: "/api/auth/notification/read-all",
-    clearAll: "/api/auth/notification/clear-all",
-    deleteOne: "/api/auth/notification",
-  }
+ 
   
 };

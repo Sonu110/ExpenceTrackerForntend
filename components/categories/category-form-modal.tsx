@@ -10,12 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { DynamicIcon, iconMap } from '@/components/dynamic-icon';
-import { createCategory, updateCategory, deleteCategory } from '@/lib/db';
 import { CATEGORY_COLORS, CATEGORY_ICONS, type Category, type TransactionType } from '@/lib/types';
 import { useSettingsStore } from '@/lib/store';
-import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { addUserCategories, deleteCategory, updateCategory } from '@/apiFasad/apiCalls/user';
 
 interface CategoryFormModalProps {
   open: boolean;
@@ -51,8 +50,8 @@ export function CategoryFormModal({
         setName(category.name);
         setColor(category.color);
         setIcon(category.icon);
-        setBudgetLimit(category.budget_limit ? String(category.budget_limit) : '');
-        setUnlimited(category.budget_limit === null);
+        setBudgetLimit(category?.monthlyBudget ? String(category.monthlyBudget) : '');
+        setUnlimited(category?.monthlyBudget === null);
         setDescription(category.description || '');
       } else {
         setName('');
@@ -97,14 +96,14 @@ export function CategoryFormModal({
         type,
         color,
         icon,
-        budget_limit: unlimited ? null : parseFloat(budgetLimit),
+        monthlyBudget: unlimited ? null : parseFloat(budgetLimit),
         description: description.trim() || null,
       };
       if (category) {
-        await updateCategory(category.id, data);
+        await updateCategory(category._id, data);
         toast.success('Category updated');
       } else {
-        await createCategory(data);
+       await addUserCategories(data);
         toast.success('Category created');
       }
       onSaved();
@@ -119,9 +118,11 @@ export function CategoryFormModal({
 
   const handleDelete = async () => {
     if (!category) return;
+  
+    
     setSubmitting(true);
     try {
-      await deleteCategory(category.id);
+      await deleteCategory(category?._id);
       toast.success('Category deleted');
       onSaved();
       onOpenChange(false);

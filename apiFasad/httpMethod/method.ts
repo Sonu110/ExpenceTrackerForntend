@@ -18,7 +18,8 @@ export const PUT = <T>(url: string, data?: any) =>
     body: JSON.stringify(data),
   });
 
-export const DELETE = <T>(url: string) =>
+export const DELETE = <T>(url: string ,params?: any) =>
   fetchClient<T>(url, {
     method: "DELETE",
+    params,
   });

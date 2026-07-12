@@ -15,3 +15,18 @@ export const updateUserDetails = (payload:any) =>
 
 
 
+export const addUserCategories = (payload:any) =>
+  POST(ENDPOINTS.USERS.userCategories, payload);
+
+
+export const getUserCategories = () =>
+  GET(ENDPOINTS.USERS.userCategories);
+
+
+
+export const deleteCategory = (id:string) =>
+  DELETE(`${ENDPOINTS.USERS.userCategories}/${id}` );
+
+export const updateCategory = (id:string,payload:any) =>
+  PUT(`${ENDPOINTS.USERS.userCategories}/${id}` ,payload);
+
