@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,6 @@ import { Charts } from '@/components/dashboard/charts';
 import { CategoryProgress } from '@/components/dashboard/category-progress';
 import { TransactionsTable } from '@/components/dashboard/transactions-table';
 import { useAllData } from '@/hooks/use-data';
-import { useSettingsStore } from '@/lib/store';
 import { getStartOfMonth } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -22,15 +21,36 @@ import {
 import { cn } from '@/lib/utils';
 import type { TransactionType } from '@/lib/types';
 import { useAuthStore } from '@/zustandStore/login';
+import { getUserCategories } from '@/apiFasad/apiCalls/user';
 
 type TypeFilter = 'all' | TransactionType;
 
 export default function DashboardPage() {
-  const { categories, transactions, loading } = useAllData();
+  const {  transactions } = useAllData();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [categories,setUserCategories] = useState([]);
+  const [loading,setLoading]= useState(false)
   const user = useAuthStore((s) => s.user);
-  console.log(user);
   
+    const fetchCategories = async () => {
+      try {
+        setLoading(true);
+  
+        const data = await getUserCategories();
+  
+        console.log(data);
+  
+        setUserCategories(data?.data);
+      } catch (error) {
+        console.error("Category fetch error", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    useEffect(() => {
+      fetchCategories();
+    }, []);
 
   const filteredTransactions = useMemo(() => {
     if (typeFilter === 'all') return transactions;
@@ -98,10 +118,9 @@ export default function DashboardPage() {
           thisMonthSpending={stats.thisMonthSpending}
         />
 
-        <Charts transactions={filteredTransactions} />
-
+        <Charts transactions={categories} />
         {typeFilter !== 'investment' && (
-          <CategoryProgress categories={categories} transactions={filteredTransactions} />
+          <CategoryProgress categories={categories} transactions={filteredTransactions} type={"All"} />
         )}
 
         <div>
