@@ -54,11 +54,6 @@ export default function CategoriesPage() {
 
   const filteredCategories = userCategories.filter((c) => c?.type === activeTab);
 
-  const getSpent = (categoryId: string): number => {
-    // later connect transaction API
-
-    return 0;
-  };
 
   const handleAdd = () => {
     setEditingCategory(null);
@@ -102,7 +97,7 @@ export default function CategoriesPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <AnimatePresence mode="popLayout">
             {filteredCategories.map((cat, index) => {
-              const spent = getSpent(cat._id);
+              const spent = cat?.totalAmountSpend
 
               const limit = cat.monthlyBudget;
 
@@ -187,7 +182,7 @@ export default function CategoriesPage() {
                         </p>
                       )}
 
-                      {activeTab === "expense" && limit ? (
+                      { limit ? (
                         <div className="mt-3">
                           <div
                             className="
@@ -201,6 +196,19 @@ export default function CategoriesPage() {
                             </span>
 
                             <span>{Math.round(pct)}%</span>
+                         
+                         
+                          </div>
+                           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.5 }}
+                              className={cn(
+                                'h-full rounded-full',
+                                pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-yellow-500' : 'bg-green-500'
+                              )}
+                            />
                           </div>
                         </div>
                       ) : (

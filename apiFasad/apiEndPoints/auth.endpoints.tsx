@@ -9,7 +9,7 @@ export const ENDPOINTS = {
     userCategories: "/api/auth/categories",
     userDetails: "/api/auth/userProfiles",
     userUpdate: "/api/auth/userUpdate",
-    userTrackOrder: "/api/auth/ordersTrack",
+    userTransaction: "/api/auth/transactions",
     
   },
  

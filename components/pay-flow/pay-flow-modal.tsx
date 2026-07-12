@@ -11,8 +11,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DynamicIcon } from '@/components/dynamic-icon';
-import { useAllData } from '@/hooks/use-data';
-import { createTransaction } from '@/lib/db';
 import { useSettingsStore } from '@/lib/store';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -20,6 +18,7 @@ import type { TransactionType, Category, PaymentMethod } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
   import { getUserCategories } from "@/apiFasad/apiCalls/user";
+import { createTransaction } from '@/apiFasad/apiCalls/userTransaction';
 interface PayFlowModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -85,16 +84,18 @@ useEffect(() => {
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
- const getCategorySpent = (categoryId: string): number => {
-  return categories
-    .filter((t) => t.category_id === categoryId && t.type === 'expense')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+const getCategorySpent = (categoryId: string): number => {
+  const category = categories.find(
+    (c) => c._id === categoryId || c.id === categoryId
+  );
+
+  return Number(category?.totalAmountSpend ?? 0);
 };
 
-  const isCategoryDisabled = (cat: Category): boolean => {
-    if (type !== 'expense' || !cat.monthlyBudget) return false;
-    return getCategorySpent(cat.id) >= cat.monthlyBudget;
-  };
+const isCategoryDisabled = (cat: Category) =>
+  type === "expense" &&
+  Number(cat.monthlyBudget ?? 0) > 0 &&
+  Number(cat.totalAmountSpend ?? 0) >= Number(cat.monthlyBudget);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,39 +113,50 @@ useEffect(() => {
     reader.readAsDataURL(file);
   };
 
-  const validate = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!itemName.trim()) errs.itemName = 'Item name is required';
-    const amt = parseFloat(amount);
-    if (!amount || isNaN(amt) || amt <= 0) errs.amount = 'Amount must be greater than 0';
-    if (type === 'expense' && selectedCategory?.monthlyBudget) {
-      const spent = getCategorySpent(selectedCategory.id);
-      if (spent + amt > selectedCategory.monthlyBudget) {
-        errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(selectedCategory.monthlyBudget - spent, currency)}`;
-      }
+ const validate = (): boolean => {
+  const errs: Record<string, string> = {};
+
+  if (!itemName.trim()) errs.itemName = 'Item name is required';
+
+  const amt = parseFloat(amount);
+
+  if (!amount || isNaN(amt) || amt <= 0) {
+    errs.amount = 'Amount must be greater than 0';
+  }
+
+  if (selectedCategory?.monthlyBudget) {
+    const spent = Number(selectedCategory.totalAmountSpend ?? 0);
+
+    if (spent + amt > selectedCategory.monthlyBudget) {
+      errs.amount = `This category budget has been exceeded. Available: ${formatCurrency(
+        Math.max(0, selectedCategory.monthlyBudget - spent),
+        currency
+      )}`;
     }
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  }
+
+  setErrors(errs);
+  return Object.keys(errs).length === 0;
+};
 
   const handleSubmit = async () => {
     if (!selectedCategory) return;
     if (!validate()) return;
     setSubmitting(true);
+    console.log(selectedCategory);
+    
     try {
       await createTransaction({
-        category_id: selectedCategory.id,
+        category_id: selectedCategory._id,
         type,
         item_name: itemName.trim(),
         amount: parseFloat(amount),
         date: format(date, 'yyyy-MM-dd'),
         receipt_url: receipt,
         notes: notes.trim() || null,
-        status: 'completed',
         payment_method: paymentMethod,
       });
       toast.success(`${type === 'expense' ? 'Expense' : 'Investment'} added successfully`);
-      refetch();
       onOpenChange(false);
     } catch (err) {
       toast.error('Failed to save transaction');
@@ -247,7 +259,7 @@ useEffect(() => {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {filteredCategories.map((cat) => {
                     const disabled = isCategoryDisabled(cat);
-                    const spent = getCategorySpent(cat.id);
+                    const spent = getCategorySpent(cat._id);
                     const limit = cat.monthlyBudget;
                     return (
                       <button
@@ -268,7 +280,13 @@ useEffect(() => {
                           <DynamicIcon name={cat.icon} className="h-6 w-6" />
                         </div>
                         <p className="text-sm font-medium">{cat.name}</p>
-                        {type === 'expense' && limit && (
+                         {limit==null && (
+
+                          <p className={cn('text-xs', disabled ? 'text-red-500' : 'text-muted-foreground')}>
+                           Unlimited total {spent}
+                          </p>
+                        )}
+                        { limit && (
                           <p className={cn('text-xs', disabled ? 'text-red-500' : 'text-muted-foreground')}>
                             {disabled ? 'Limit reached' : `${formatCurrency(spent, currency)} / ${formatCurrency(limit, currency)}`}
                           </p>
@@ -311,11 +329,23 @@ useEffect(() => {
                     <p className="text-sm font-medium">{selectedCategory.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{type}</p>
                   </div>
-                  {type === 'expense' && selectedCategory.monthlyBudget && (
+
+
+    {selectedCategory.monthlyBudget===null && (
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Total spend till</p>
+                      <p className="text-sm font-semibold text-green-500">
+                        {selectedCategory?.totalAmountSpend}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedCategory.monthlyBudget && (
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-green-500">
-                        {formatCurrency(Math.max(0, selectedCategory.monthlyBudget - getCategorySpent(selectedCategory.id)), currency)}
+                        {formatCurrency(Math.max(0, selectedCategory.monthlyBudget -
+Number(selectedCategory.totalAmountSpend ?? 0)), currency)}
                       </p>
                     </div>
                   )}
