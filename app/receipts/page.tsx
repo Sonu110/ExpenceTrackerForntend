@@ -101,6 +101,15 @@ export default function ReceiptsPage() {
 
   return (
     <PageContainer title="Receipts" description="View all your uploaded bill receipts">
+       <div className="relative max-w-sm">
+            <Search className="  absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search receipts..."
+              className="pl-9"
+            />
+          </div>
       {filteredReceipts.length === 0 ? (
         <Card className="flex flex-col items-center justify-center border-0 py-20 shadow-premium">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
@@ -112,17 +121,9 @@ export default function ReceiptsPage() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 mt-5">
           {/* Search */}
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search receipts..."
-              className="pl-9"
-            />
-          </div>
+         
 
           {/* Gallery grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
