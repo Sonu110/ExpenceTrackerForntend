@@ -11,109 +11,106 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatCurrencyShort, formatCurrency } from '@/lib/format';
 import { useSettingsStore } from '@/lib/store';
 import type { ChartFilter, TransactionWithCategory } from '@/lib/types';
-import { format, startOfWeek, startOfMonth, startOfYear, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, subDays, subWeeks, subMonths, isWithinInterval } from 'date-fns';
+import { normalizeTransactions, type RawTransaction } from '@/lib/transformers';
+import {
+  format, startOfWeek, startOfYear, eachWeekOfInterval, eachMonthOfInterval,
+  subDays, isWithinInterval,
+} from 'date-fns';
 
 interface ChartsProps {
-  transactions: TransactionWithCategory[];
+  // Accepts either raw MongoDB transaction docs or already-normalized ones.
+  transactions: (TransactionWithCategory | RawTransaction)[];
 }
 
-export function Charts({ transactions }: ChartsProps) {
+export function Charts({ transactions: rawInput }: ChartsProps) {
   const [filter, setFilter] = useState<ChartFilter>('monthly');
   const { currency } = useSettingsStore();
 
+  // Normalize once so every calc below can rely on .date, .amount, .type, .category.name/color
+  const transactions = useMemo(() => normalizeTransactions(rawInput), [rawInput]);
+
+  // If the parent already filtered to a single type (e.g. "Expense" only),
+  // there won't be any investment transactions at all — in that case we
+  // hide the investment cards entirely instead of showing them empty.
+  const hasExpenseData = useMemo(() => transactions.some((t) => t.type === 'expense'), [transactions]);
+  const hasInvestmentData = useMemo(() => transactions.some((t) => t.type === 'investment'), [transactions]);
+
   const { expenseByCategory, investmentByCategory, expenseTrend, investmentTrend } = useMemo(() => {
     const now = new Date();
+    const endDate: Date = now;
     let startDate: Date;
-    let endDate: Date = now;
 
     if (filter === 'weekly') {
       startDate = subDays(now, 7 * 4); // last 4 weeks
     } else if (filter === 'monthly') {
       startDate = subDays(now, 30 * 6); // last 6 months
     } else {
-      startDate = startOfYear(now);
+      startDate = startOfYear(now); // year to date
     }
 
+    // Transactions that fall inside the selected period — this now works
+    // because `transactions` are normalized and always have a real `.date`.
     const filtered = transactions.filter((t) => {
       const d = new Date(t.date);
       return d >= startDate && d <= endDate;
     });
 
-    // Expense by category
-    const expenseMap = new Map<string, { name: string; value: number; color: string }>();
-    filtered.filter((t) => t.type === 'expense').forEach((t) => {
-      const key = t.category.name;
-      const existing = expenseMap.get(key);
-      if (existing) {
-        existing.value += Number(t.amount);
-      } else {
-        expenseMap.set(key, { name: key, value: Number(t.amount), color: t.category.color });
-      }
-    });
+    // Sum amounts per category for the selected period, split by expense/investment.
+    const groupByCategory = (type: 'expense' | 'investment') => {
+      const map = new Map<string, { name: string; value: number; color: string }>();
+      filtered
+        .filter((t) => t.type === type)
+        .forEach((t) => {
+          const key = t.category.name;
+          const existing = map.get(key);
+          if (existing) {
+            existing.value += Number(t.amount);
+          } else {
+            map.set(key, { name: key, value: Number(t.amount), color: t.category.color });
+          }
+        });
+      return Array.from(map.values()).sort((a, b) => b.value - a.value);
+    };
 
-    // Investment by category
-    const investmentMap = new Map<string, { name: string; value: number; color: string }>();
-    filtered.filter((t) => t.type === 'investment').forEach((t) => {
-      const key = t.category.name;
-      const existing = investmentMap.get(key);
-      if (existing) {
-        existing.value += Number(t.amount);
-      } else {
-        investmentMap.set(key, { name: key, value: Number(t.amount), color: t.category.color });
-      }
-    });
+    const expenseCategoryData = groupByCategory('expense');
+    const investmentCategoryData = groupByCategory('investment');
 
-    // Trends
+    // Trend buckets
     let intervals: Date[];
     let formatStr: string;
 
     if (filter === 'weekly') {
-      const weeks = eachWeekOfInterval({ start: startDate, end: endDate });
-      intervals = weeks;
+      intervals = eachWeekOfInterval({ start: startDate, end: endDate });
       formatStr = 'MMM d';
-    } else if (filter === 'monthly') {
-      const months = eachMonthOfInterval({ start: startDate, end: endDate });
-      intervals = months;
-      formatStr = 'MMM';
     } else {
-      const months = eachMonthOfInterval({ start: startDate, end: endDate });
-      intervals = months;
+      // monthly and yearly both bucket by month
+      intervals = eachMonthOfInterval({ start: startDate, end: endDate });
       formatStr = 'MMM';
     }
 
-    const expenseTrendData = intervals.map((intervalStart) => {
-      const intervalEnd = filter === 'weekly'
-        ? subDays(startOfWeek(intervalStart), -7)
-        : filter === 'monthly'
-        ? new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0)
-        : new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0);
+    const buildTrend = (type: 'expense' | 'investment') =>
+      intervals.map((intervalStart) => {
+        const intervalEnd =
+          filter === 'weekly'
+            ? subDays(startOfWeek(intervalStart), -7)
+            : new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0);
 
-      const total = filtered
-        .filter((t) => t.type === 'expense' && isWithinInterval(new Date(t.date), { start: intervalStart, end: intervalEnd }))
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+        const total = filtered
+          .filter(
+            (t) =>
+              t.type === type &&
+              isWithinInterval(new Date(t.date), { start: intervalStart, end: intervalEnd })
+          )
+          .reduce((sum, t) => sum + Number(t.amount), 0);
 
-      return { name: format(intervalStart, formatStr), value: total };
-    });
-
-    const investmentTrendData = intervals.map((intervalStart) => {
-      const intervalEnd = filter === 'weekly'
-        ? subDays(startOfWeek(intervalStart), -7)
-        : filter === 'monthly'
-        ? new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0)
-        : new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0);
-
-      const total = filtered
-        .filter((t) => t.type === 'investment' && isWithinInterval(new Date(t.date), { start: intervalStart, end: intervalEnd }))
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-
-      return { name: format(intervalStart, formatStr), value: total };
-    });
+        return { name: format(intervalStart, formatStr), value: total };
+      });
 
     return {
-      expenseByCategory: Array.from(expenseMap.values()).sort((a, b) => b.value - a.value),
-      investmentByCategory: Array.from(investmentMap.values()).sort((a, b) => b.value - a.value),
-      expenseTrend: expenseTrendData,
-      investmentTrend: investmentTrendData,
+      expenseByCategory: expenseCategoryData,
+      investmentByCategory: investmentCategoryData,
+      expenseTrend: buildTrend('expense'),
+      investmentTrend: buildTrend('investment'),
     };
   }, [transactions, filter]);
 
@@ -137,6 +134,7 @@ export function Charts({ transactions }: ChartsProps) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Expense by Category - Pie */}
+        {hasExpenseData && (
         <ChartCard title="Expense by Category" delay={0}>
           {expenseByCategory.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
@@ -169,8 +167,10 @@ export function Charts({ transactions }: ChartsProps) {
             <EmptyChart />
           )}
         </ChartCard>
+        )}
 
         {/* Investment by Category - Pie */}
+        {hasInvestmentData && (
         <ChartCard title="Investment by Category" delay={0.1}>
           {investmentByCategory.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
@@ -203,8 +203,10 @@ export function Charts({ transactions }: ChartsProps) {
             <EmptyChart />
           )}
         </ChartCard>
+        )}
 
         {/* Expense Trend - Line */}
+        {hasExpenseData && (
         <ChartCard title="Expense Trend" delay={0.2}>
           {expenseTrend.some((d) => d.value > 0) ? (
             <ResponsiveContainer width="100%" height={250}>
@@ -236,8 +238,10 @@ export function Charts({ transactions }: ChartsProps) {
             <EmptyChart />
           )}
         </ChartCard>
+        )}
 
         {/* Investment Trend - Bar */}
+        {hasInvestmentData && (
         <ChartCard title="Investment Trend" delay={0.3}>
           {investmentTrend.some((d) => d.value > 0) ? (
             <ResponsiveContainer width="100%" height={250}>
@@ -263,7 +267,14 @@ export function Charts({ transactions }: ChartsProps) {
             <EmptyChart />
           )}
         </ChartCard>
+        )}
       </div>
+
+      {!hasExpenseData && !hasInvestmentData && (
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border">
+          <p className="text-sm text-muted-foreground">No transactions to analyze yet</p>
+        </div>
+      )}
     </div>
   );
 }

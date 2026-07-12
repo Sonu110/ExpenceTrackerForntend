@@ -10,7 +10,6 @@ import { SummaryCards } from '@/components/dashboard/summary-cards';
 import { Charts } from '@/components/dashboard/charts';
 import { CategoryProgress } from '@/components/dashboard/category-progress';
 import { TransactionsTable } from '@/components/dashboard/transactions-table';
-import { useAllData } from '@/hooks/use-data';
 import { getStartOfMonth } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -22,35 +21,62 @@ import { cn } from '@/lib/utils';
 import type { TransactionType } from '@/lib/types';
 import { useAuthStore } from '@/zustandStore/login';
 import { getUserCategories } from '@/apiFasad/apiCalls/user';
+import { deteleTransaction, getTransaction } from '@/apiFasad/apiCalls/userTransaction';
+import { normalizeTransactions } from '@/lib/transformers';
+
 
 type TypeFilter = 'all' | TransactionType;
 
 export default function DashboardPage() {
-  const {  transactions } = useAllData();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [categories,setUserCategories] = useState([]);
-  const [loading,setLoading]= useState(false)
+  const [categories, setUserCategories] = useState([]);
+  const [rawTransactions, setRawTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [deletLoad, setDeletLoading] = useState(false);
+  
   const user = useAuthStore((s) => s.user);
+  console.log(user);
   
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-  
-        const data = await getUserCategories();
-  
-        console.log(data);
-  
-        setUserCategories(data?.data);
-      } catch (error) {
-        console.error("Category fetch error", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    useEffect(() => {
-      fetchCategories();
-    }, []);
+  const handleDelete = async(id:string)=>{
+    try {
+      setDeletLoading(true);
+      const res = await deteleTransaction(id)
+    } catch (error) {
+      
+    }
+    finally {
+      setDeletLoading(false);
+    }
+
+  }
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+
+      const data = await getUserCategories();
+      const transactionData = await getTransaction();
+
+      setRawTransactions(transactionData?.data ?? []);
+      setUserCategories(data?.data ?? []);
+    } catch (error) {
+      console.error('Category fetch error', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, [deletLoad]);
+
+
+
+
+  // Normalize once here — raw MongoDB transaction docs (categoryId as object,
+  // `title`, `transactionDate`, `paymentMethod`) become a flat, consistent
+  // shape (`item_name`, `date`, `payment_method`, `category`) that every
+  // child component (table, charts, stats) can rely on.
+  const transactions = useMemo(() => normalizeTransactions(rawTransactions), [rawTransactions]);
 
   const filteredTransactions = useMemo(() => {
     if (typeFilter === 'all') return transactions;
@@ -67,15 +93,12 @@ export default function DashboardPage() {
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const monthStart = getStartOfMonth();
-    const thisMonthSpending = filteredTransactions
-      .filter((t) => t.type === 'expense' && new Date(t.date) >= monthStart)
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const thisMonthSpending =user?.monthlyBudget
 
-    const totalBudget = categories
-      .filter((c) => c.type === 'expense' && c.budget_limit)
-      .reduce((sum, c) => sum + c.budget_limit!, 0);
+    // NOTE: category docs use `monthlyBudget`, not `budget_limit` — fixed here.
+    const totalBudget = user?.monthlyBudget
 
-    const remainingBudget = Math.max(0, totalBudget - totalExpense);
+    const remainingBudget = Math.max(0, totalBudget - (totalExpense+totalInvestment));
 
     return { totalExpense, totalInvestment, thisMonthSpending, remainingBudget };
   }, [filteredTransactions, categories]);
@@ -106,7 +129,7 @@ export default function DashboardPage() {
 
   return (
     <PageContainer
-     title={`${user?.username.toUpperCase()} `}
+      title={`${user?.username.toUpperCase()} `}
       description="Track your expenses and investments"
       action={<HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />}
     >
@@ -118,14 +141,17 @@ export default function DashboardPage() {
           thisMonthSpending={stats.thisMonthSpending}
         />
 
-        <Charts transactions={categories} />
+        {/* Real transactions (with dates) now go into Charts, so the
+            weekly/monthly/yearly toggle actually filters the data. */}
+        <Charts transactions={filteredTransactions} />
+
         {typeFilter !== 'investment' && (
           <CategoryProgress categories={categories} transactions={filteredTransactions} type={"All"} />
         )}
 
         <div>
           <h2 className="mb-3 text-lg font-semibold">Recent Transactions</h2>
-          <TransactionsTable transactions={filteredTransactions} />
+          <TransactionsTable transactions={filteredTransactions} onDelete={handleDelete} />
         </div>
       </div>
     </PageContainer>

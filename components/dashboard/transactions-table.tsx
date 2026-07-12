@@ -1,38 +1,88 @@
-'use client';
+"use client";
 
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ImageIcon, Filter, X, Wallet, CreditCard, Smartphone } from 'lucide-react';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { DynamicIcon } from '@/components/dynamic-icon';
-import { formatCurrency, formatDate, getStartOfDay, getStartOfWeek, getStartOfMonth, getStartOfYear } from '@/lib/format';
-import { useSettingsStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
-import type { TransactionWithCategory, SortField, SortDirection, DateFilter, PaymentMethod } from '@/lib/types';
-import { format } from 'date-fns';
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Dialog, DialogContent, DialogTitle,
-} from '@/components/ui/dialog';
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ImageIcon,
+  Filter,
+  X,
+  Wallet,
+  CreditCard,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { DynamicIcon } from "@/components/dynamic-icon";
+import {
+  formatCurrency,
+  formatDate,
+  getStartOfDay,
+  getStartOfWeek,
+  getStartOfMonth,
+  getStartOfYear,
+} from "@/lib/format";
+import { useSettingsStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import type {
+  TransactionWithCategory,
+  SortField,
+  SortDirection,
+  DateFilter,
+  PaymentMethod,
+} from "@/lib/types";
+import { normalizeTransactions, type RawTransaction } from "@/lib/transformers";
+import { format } from "date-fns";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { TransactionActionMenu } from "./TransactionActionMenu";
 
 interface TransactionsTableProps {
-  transactions: TransactionWithCategory[];
+  // Accepts either raw MongoDB transaction docs or already-normalized ones.
+  onDelete :(id:String)=> void,
+  transactions: (TransactionWithCategory | RawTransaction)[];
 }
 
-export function TransactionsTable({ transactions }: TransactionsTableProps) {
+export function TransactionsTable({
+  transactions: rawInput, onDelete
+}: TransactionsTableProps) {
   const { currency } = useSettingsStore();
-  const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDir, setSortDir] = useState<SortDirection>('desc');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'investment'>('all');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
+
+  const transactions = useMemo(
+    () => normalizeTransactions(rawInput),
+    [rawInput],
+  );
+
+  const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDir, setSortDir] = useState<SortDirection>("desc");
+  const [typeFilter, setTypeFilter] = useState<
+    "all" | "expense" | "investment"
+  >("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>(
+    {},
+  );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const categories = useMemo(() => {
@@ -47,33 +97,34 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
     // Search
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter((t) =>
-        t.item_name.toLowerCase().includes(q) ||
-        t.category.name.toLowerCase().includes(q) ||
-        String(t.amount).includes(q) ||
-        formatDate(t.date).toLowerCase().includes(q)
+      result = result.filter(
+        (t) =>
+          t.item_name.toLowerCase().includes(q) ||
+          t.category.name.toLowerCase().includes(q) ||
+          String(t.amount).includes(q) ||
+          formatDate(t.date).toLowerCase().includes(q),
       );
     }
 
     // Type filter
-    if (typeFilter !== 'all') {
+    if (typeFilter !== "all") {
       result = result.filter((t) => t.type === typeFilter);
     }
 
     // Category filter
-    if (categoryFilter !== 'all') {
+    if (categoryFilter !== "all") {
       result = result.filter((t) => t.category_id === categoryFilter);
     }
 
     // Date filter
-    if (dateFilter !== 'all') {
+    if (dateFilter !== "all") {
       const now = new Date();
       let start: Date;
-      if (dateFilter === 'today') start = getStartOfDay(now);
-      else if (dateFilter === 'week') start = getStartOfWeek(now);
-      else if (dateFilter === 'month') start = getStartOfMonth(now);
-      else if (dateFilter === 'year') start = getStartOfYear(now);
-      else if (dateFilter === 'custom') {
+      if (dateFilter === "today") start = getStartOfDay(now);
+      else if (dateFilter === "week") start = getStartOfWeek(now);
+      else if (dateFilter === "month") start = getStartOfMonth(now);
+      else if (dateFilter === "year") start = getStartOfYear(now);
+      else if (dateFilter === "custom") {
         if (customRange.from && customRange.to) {
           result = result.filter((t) => {
             const d = new Date(t.date);
@@ -87,20 +138,34 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
     }
 
     return applySort(result, sortField, sortDir);
-  }, [transactions, search, typeFilter, categoryFilter, dateFilter, customRange, sortField, sortDir]);
+  }, [
+    transactions,
+    search,
+    typeFilter,
+    categoryFilter,
+    dateFilter,
+    customRange,
+    sortField,
+    sortDir,
+  ]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDir('desc');
+      setSortDir("desc");
     }
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
-    return sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+    if (sortField !== field)
+      return <ArrowUpDown className="h-3 w-3 opacity-40" />;
+    return sortDir === "asc" ? (
+      <ArrowUp className="h-3 w-3" />
+    ) : (
+      <ArrowDown className="h-3 w-3" />
+    );
   };
 
   return (
@@ -119,7 +184,10 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
               />
             </div>
             <div className="flex gap-2">
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}
+              >
                 <SelectTrigger className="w-[120px]">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
@@ -136,20 +204,31 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className={cn(dateFilter !== 'all' && 'border-primary text-primary')}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={cn(
+                      dateFilter !== "all" && "border-primary text-primary",
+                    )}
+                  >
                     <Filter className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56" align="end">
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Date Filter</p>
-                    <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
+                    <Select
+                      value={dateFilter}
+                      onValueChange={(v) => setDateFilter(v as DateFilter)}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -162,25 +241,33 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                         <SelectItem value="custom">Custom Range</SelectItem>
                       </SelectContent>
                     </Select>
-                    {dateFilter === 'custom' && (
+                    {dateFilter === "custom" && (
                       <div className="pt-2">
                         <Calendar
                           mode="range"
-                          selected={{ from: customRange.from, to: customRange.to }}
-                          onSelect={(range) => setCustomRange({ from: range?.from, to: range?.to })}
+                          selected={{
+                            from: customRange.from,
+                            to: customRange.to,
+                          }}
+                          onSelect={(range) =>
+                            setCustomRange({ from: range?.from, to: range?.to })
+                          }
                         />
                       </div>
                     )}
-                    {(dateFilter !== 'all' || search || typeFilter !== 'all' || categoryFilter !== 'all') && (
+                    {(dateFilter !== "all" ||
+                      search ||
+                      typeFilter !== "all" ||
+                      categoryFilter !== "all") && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="w-full"
                         onClick={() => {
-                          setDateFilter('all');
-                          setSearch('');
-                          setTypeFilter('all');
-                          setCategoryFilter('all');
+                          setDateFilter("all");
+                          setSearch("");
+                          setTypeFilter("all");
+                          setCategoryFilter("all");
                           setCustomRange({});
                         }}
                       >
@@ -200,41 +287,67 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <button onClick={() => handleSort('date')} className="flex items-center gap-1 hover:text-foreground">
+                  <button
+                    onClick={() => handleSort("date")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
                     Date <SortIcon field="date" />
                   </button>
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  <button onClick={() => handleSort('item_name')} className="flex items-center gap-1 hover:text-foreground">
+                  Type
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Category
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  <button
+                    onClick={() => handleSort("item_name")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
                     Item <SortIcon field="item_name" />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  <button onClick={() => handleSort('amount')} className="flex items-center gap-1 hover:text-foreground">
+                  <button
+                    onClick={() => handleSort("amount")}
+                    className="flex items-center gap-1 hover:text-foreground"
+                  >
                     Amount <SortIcon field="amount" />
                   </button>
                 </th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Receipt</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Paid via</th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                  Receipt
+                </th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                  Paid via
+                </th>
+                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                  Delete
+                </th>
               </tr>
             </thead>
             <tbody>
               <AnimatePresence>
                 {filtered.map((t, i) => (
                   <motion.tr
-                    key={t.id}
+                    key={t._id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ delay: i * 0.02 }}
                     className="border-b border-border/50 transition-colors hover:bg-muted/30"
                   >
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(t.date)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatDate(t.date)}
+                    </td>
                     <td className="px-4 py-3">
-                      <Badge variant={t.type === 'expense' ? 'destructive' : 'default'} className="capitalize">
+                      <Badge
+                        variant={
+                          t.type === "expense" ? "destructive" : "default"
+                        }
+                        className="capitalize"
+                      >
                         {t.type}
                       </Badge>
                     </td>
@@ -242,21 +355,42 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                       <div className="flex items-center gap-2">
                         <div
                           className="flex h-7 w-7 items-center justify-center rounded-lg"
-                          style={{ backgroundColor: `${t.category.color}20`, color: t.category.color }}
+                          style={{
+                            backgroundColor: `${t.category.color}20`,
+                            color: t.category.color,
+                          }}
                         >
-                          <DynamicIcon name={t.category.icon} className="h-3.5 w-3.5" />
+                          <DynamicIcon
+                            name={t.category.icon}
+                            className="h-3.5 w-3.5"
+                          />
                         </div>
                         <span>{t.category.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 font-medium">{t.item_name}</td>
-                    <td className={cn('px-4 py-3 text-right font-semibold', t.type === 'expense' ? 'text-red-500' : 'text-green-500')}>
-                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(Number(t.amount), currency)}
+                    <td
+                      className={cn(
+                        "px-4 py-3 text-right font-semibold",
+                        t.type === "expense"
+                          ? "text-red-500"
+                          : "text-green-500",
+                      )}
+                    >
+                      {t.type === "expense" ? "-" : "+"}
+                      {formatCurrency(Number(t.amount), currency)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {t.receipt_url ? (
-                        <button onClick={() => setPreviewImage(t.receipt_url)} className="inline-flex">
-                          <img src={t.receipt_url} alt="Receipt" className="h-10 w-10 rounded-lg object-cover ring-1 ring-border" />
+                        <button
+                          onClick={() => setPreviewImage(t.receipt_url)}
+                          className="inline-flex"
+                        >
+                          <img
+                            src={t.receipt_url}
+                            alt="Receipt"
+                            className="h-10 w-10 rounded-lg object-cover ring-1 ring-border"
+                          />
                         </button>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
@@ -266,13 +400,12 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                       <PaymentMethodBadge method={t.payment_method} />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={cn(
-                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                        t.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'
-                      )}>
-                        {t.status}
-                      </span>
+                      <Button variant="destructive" className="flex-1" onClick={()=>onDelete(t._id)}>
+                        Delete
+                      </Button>
                     </td>
+
+                    <td className="px-4 py-3 text-center"></td>
                   </motion.tr>
                 ))}
               </AnimatePresence>
@@ -290,7 +423,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
           <AnimatePresence>
             {filtered.map((t) => (
               <motion.div
-                key={t.id}
+                key={t?._id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -300,25 +433,53 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                   <div className="flex items-center gap-2">
                     <div
                       className="flex h-9 w-9 items-center justify-center rounded-lg"
-                      style={{ backgroundColor: `${t.category.color}20`, color: t.category.color }}
+                      style={{
+                        backgroundColor: `${t.category.color}20`,
+                        color: t.category.color,
+                      }}
                     >
                       <DynamicIcon name={t.category.icon} className="h-4 w-4" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">{t.item_name}</p>
-                      <p className="text-xs text-muted-foreground">{t.category.name} · {formatDate(t.date)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.category.name} · {formatDate(t.date)}
+                      </p>
                       <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                         <PaymentMethodBadge method={t.payment_method} compact />
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={cn('text-sm font-semibold', t.type === 'expense' ? 'text-red-500' : 'text-green-500')}>
-                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(Number(t.amount), currency)}
+                    <div className="flex flex-col items-end justify-end">
+
+                    <p
+                      className={cn(
+                        "text-sm font-semibold",
+                        t.type === "expense"
+                          ? "text-red-500"
+                          : "text-green-500",
+                      )}
+                    >
+                      {t.type === "expense" ? "-" : "+"}
+                      {formatCurrency(Number(t.amount), currency)}
                     </p>
+                    <div onClick={()=>onDelete(t._id)} className=" mt-3
+                     mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-red-500/10">
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </div>
+</div>
+                    
                     {t.receipt_url && (
-                      <button onClick={() => setPreviewImage(t.receipt_url)} className="mt-1 inline-flex">
-                        <img src={t.receipt_url} alt="Receipt" className="h-8 w-8 rounded object-cover" />
+                      <button
+                        onClick={() => setPreviewImage(t.receipt_url)}
+                        className="mt-1 inline-flex"
+                      >
+                        <img
+                          src={t.receipt_url}
+                          alt="Receipt"
+                          className="h-8 w-8 rounded object-cover"
+                        />
                       </button>
                     )}
                   </div>
@@ -335,11 +496,18 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
       </Card>
 
       {/* Image preview dialog */}
-      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+      <Dialog
+        open={!!previewImage}
+        onOpenChange={(open) => !open && setPreviewImage(null)}
+      >
         <DialogContent className="max-w-md p-0">
           <DialogTitle className="sr-only">Receipt preview</DialogTitle>
           {previewImage && (
-            <img src={previewImage} alt="Receipt" className="w-full rounded-lg" />
+            <img
+              src={previewImage}
+              alt="Receipt"
+              className="w-full rounded-lg"
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -347,40 +515,67 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
   );
 }
 
-function PaymentMethodBadge({ method, compact = false }: { method: PaymentMethod; compact?: boolean }) {
+function PaymentMethodBadge({
+  method,
+  compact = false,
+}: {
+  method: PaymentMethod;
+  compact?: boolean;
+}) {
   const config = {
-    cash: { icon: Wallet, label: 'Cash', cls: 'bg-amber-500/10 text-amber-600' },
-    card: { icon: CreditCard, label: 'Card', cls: 'bg-blue-500/10 text-blue-600' },
-    upi: { icon: Smartphone, label: 'UPI', cls: 'bg-violet-500/10 text-violet-600' },
+    cash: {
+      icon: Wallet,
+      label: "Cash",
+      cls: "bg-amber-500/10 text-amber-600",
+    },
+    card: {
+      icon: CreditCard,
+      label: "Card",
+      cls: "bg-blue-500/10 text-blue-600",
+    },
+    upi: {
+      icon: Smartphone,
+      label: "UPI",
+      cls: "bg-violet-500/10 text-violet-600",
+    },
   };
   const { icon: Icon, label, cls } = config[method];
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', cls)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+        cls,
+      )}
+    >
       <Icon className="h-3 w-3" />
       {compact ? label : <span className="capitalize">{label}</span>}
     </span>
   );
 }
 
-function applySort(arr: TransactionWithCategory[], field: SortField, dir: SortDirection): TransactionWithCategory[] {
+function applySort(
+  arr: TransactionWithCategory[],
+  field: SortField,
+  dir: SortDirection,
+): TransactionWithCategory[] {
   return arr.sort((a, b) => {
     let aVal: string | number;
     let bVal: string | number;
-    if (field === 'category') {
+    if (field === "category") {
       aVal = a.category.name;
       bVal = b.category.name;
-    } else if (field === 'amount') {
+    } else if (field === "amount") {
       aVal = Number(a.amount);
       bVal = Number(b.amount);
-    } else if (field === 'date') {
+    } else if (field === "date") {
       aVal = new Date(a.date).getTime();
       bVal = new Date(b.date).getTime();
     } else {
       aVal = a[field];
       bVal = b[field];
     }
-    if (aVal < bVal) return dir === 'asc' ? -1 : 1;
-    if (aVal > bVal) return dir === 'asc' ? 1 : -1;
+    if (aVal < bVal) return dir === "asc" ? -1 : 1;
+    if (aVal > bVal) return dir === "asc" ? 1 : -1;
     return 0;
   });
 }

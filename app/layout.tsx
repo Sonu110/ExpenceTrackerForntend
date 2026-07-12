@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: 'FinTrack — Expense & Investment Tracker',
   description:
     'A premium finance tracking app for managing expenses and investments with beautiful insights.',
+    // icons:
 };
 
 export default function RootLayout({
