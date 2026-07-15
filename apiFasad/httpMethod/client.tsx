@@ -42,7 +42,6 @@ export async function fetchClient<T>(
   }
 
   const res = await fetch(`${BASE_URL}${url}${query}`, {
-    credentials: "include",
     headers: requestHeaders,
     body: processedBody, // Maps the processed data safely
     ...rest,
