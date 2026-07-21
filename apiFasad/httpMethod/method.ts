@@ -16,7 +16,7 @@ export const POST = <T>(url: string, data?: any) =>
 export const PUT = <T>(url: string, data?: any) =>
   fetchClient<T>(url, {
     method: "PUT",
-    body: JSON.stringify(data),
+    body: data,
   });
 
 export const DELETE = <T>(url: string ,params?: any) =>
