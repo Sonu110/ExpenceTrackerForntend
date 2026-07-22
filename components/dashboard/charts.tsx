@@ -29,13 +29,18 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
   // Normalize once so every calc below can rely on .date, .amount, .type, .category.name/color
   const transactions = useMemo(() => normalizeTransactions(rawInput), [rawInput]);
 
-  // If the parent already filtered to a single type (e.g. "Expense" only),
-  // there won't be any investment transactions at all — in that case we
-  // hide the investment cards entirely instead of showing them empty.
   const hasExpenseData = useMemo(() => transactions.some((t) => t.type === 'expense'), [transactions]);
+  const hasIncomeData = useMemo(() => transactions.some((t) => t.type === 'income'), [transactions]);
   const hasInvestmentData = useMemo(() => transactions.some((t) => t.type === 'investment'), [transactions]);
 
-  const { expenseByCategory, investmentByCategory, expenseTrend, investmentTrend } = useMemo(() => {
+  const {
+    expenseByCategory,
+    incomeByCategory,
+    investmentByCategory,
+    expenseTrend,
+    incomeTrend,
+    investmentTrend,
+  } = useMemo(() => {
     const now = new Date();
     const endDate: Date = now;
     let startDate: Date;
@@ -48,15 +53,13 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
       startDate = startOfYear(now); // year to date
     }
 
-    // Transactions that fall inside the selected period — this now works
-    // because `transactions` are normalized and always have a real `.date`.
     const filtered = transactions.filter((t) => {
       const d = new Date(t.date);
       return d >= startDate && d <= endDate;
     });
 
-    // Sum amounts per category for the selected period, split by expense/investment.
-    const groupByCategory = (type: 'expense' | 'investment') => {
+    // Sum amounts per category for the selected period, split by type
+    const groupByCategory = (type: 'expense' | 'income' | 'investment') => {
       const map = new Map<string, { name: string; value: number; color: string }>();
       filtered
         .filter((t) => t.type === type)
@@ -73,6 +76,7 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
     };
 
     const expenseCategoryData = groupByCategory('expense');
+    const incomeCategoryData = groupByCategory('income');
     const investmentCategoryData = groupByCategory('investment');
 
     // Trend buckets
@@ -83,12 +87,11 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
       intervals = eachWeekOfInterval({ start: startDate, end: endDate });
       formatStr = 'MMM d';
     } else {
-      // monthly and yearly both bucket by month
       intervals = eachMonthOfInterval({ start: startDate, end: endDate });
       formatStr = 'MMM';
     }
 
-    const buildTrend = (type: 'expense' | 'investment') =>
+    const buildTrend = (type: 'expense' | 'income' | 'investment') =>
       intervals.map((intervalStart) => {
         const intervalEnd =
           filter === 'weekly'
@@ -108,8 +111,10 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
 
     return {
       expenseByCategory: expenseCategoryData,
+      incomeByCategory: incomeCategoryData,
       investmentByCategory: investmentCategoryData,
       expenseTrend: buildTrend('expense'),
+      incomeTrend: buildTrend('income'),
       investmentTrend: buildTrend('investment'),
     };
   }, [transactions, filter]);
@@ -135,142 +140,207 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Expense by Category - Pie */}
         {hasExpenseData && (
-        <ChartCard title="Expense by Category" delay={0}>
-          {expenseByCategory.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={expenseByCategory}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={90}
-                  paddingAngle={2}
-                >
-                  {expenseByCategory.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value, currency)}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
-                />
-                <Legend
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart />
-          )}
-        </ChartCard>
+          <ChartCard title="Expense by Category" delay={0}>
+            {expenseByCategory.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={expenseByCategory}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {expenseByCategory.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                  />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
+        )}
+
+        {/* Income by Category - Pie */}
+        {hasIncomeData && (
+          <ChartCard title="Income by Category" delay={0.1}>
+            {incomeByCategory.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={incomeByCategory}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {incomeByCategory.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                  />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
         )}
 
         {/* Investment by Category - Pie */}
         {hasInvestmentData && (
-        <ChartCard title="Investment by Category" delay={0.1}>
-          {investmentByCategory.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={investmentByCategory}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={90}
-                  paddingAngle={2}
-                >
-                  {investmentByCategory.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value, currency)}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
-                />
-                <Legend
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart />
-          )}
-        </ChartCard>
+          <ChartCard title="Investment by Category" delay={0.2}>
+            {investmentByCategory.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={investmentByCategory}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {investmentByCategory.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                  />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
         )}
 
         {/* Expense Trend - Line */}
         {hasExpenseData && (
-        <ChartCard title="Expense Trend" delay={0.2}>
-          {expenseTrend.some((d) => d.value > 0) ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={expenseTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => formatCurrencyShort(v, currency)}
-                />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value, currency)}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={3}
-                  dot={{ fill: 'hsl(var(--primary))', r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart />
-          )}
-        </ChartCard>
+          <ChartCard title="Expense Trend" delay={0.3}>
+            {expenseTrend.some((d) => d.value > 0) ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={expenseTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatCurrencyShort(v, currency)}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={3}
+                    dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
+        )}
+
+        {/* Income Trend - Bar */}
+        {hasIncomeData && (
+          <ChartCard title="Income Trend" delay={0.4}>
+            {incomeTrend.some((d) => d.value > 0) ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={incomeTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatCurrencyShort(v, currency)}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                  />
+                  <Bar dataKey="value" fill="#0284c7" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
         )}
 
         {/* Investment Trend - Bar */}
         {hasInvestmentData && (
-        <ChartCard title="Investment Trend" delay={0.3}>
-          {investmentTrend.some((d) => d.value > 0) ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={investmentTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => formatCurrencyShort(v, currency)}
-                />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value, currency)}
-                  contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
-                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
-                />
-                <Bar dataKey="value" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart />
-          )}
-        </ChartCard>
+          <ChartCard title="Investment Trend" delay={0.5}>
+            {investmentTrend.some((d) => d.value > 0) ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={investmentTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatCurrencyShort(v, currency)}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value, currency)}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--popover))' }}
+                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                  />
+                  <Bar dataKey="value" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart />
+            )}
+          </ChartCard>
         )}
       </div>
 
-      {!hasExpenseData && !hasInvestmentData && (
+      {!hasExpenseData && !hasIncomeData && !hasInvestmentData && (
         <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border">
           <p className="text-sm text-muted-foreground">No transactions to analyze yet</p>
         </div>
