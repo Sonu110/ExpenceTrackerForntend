@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, TrendingDown, TrendingUp } from "lucide-react";
+import { Plus, Pencil, TrendingDown, TrendingUp, Banknote } from "lucide-react";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,31 +16,21 @@ import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import type { Category, TransactionType } from "@/lib/types";
-
 import { getUserCategories } from "@/apiFasad/apiCalls/user";
 
 export default function CategoriesPage() {
   const { currency } = useSettingsStore();
-
   const [activeTab, setActiveTab] = useState<TransactionType>("expense");
-
   const [modalOpen, setModalOpen] = useState(false);
-
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-
   const [userCategories, setUserCategories] = useState<any[]>([]);
-
   const [loading, setLoading] = useState(true);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
-
       const data = await getUserCategories();
-
-      console.log(data);
-
-      setUserCategories(data?.data);
+      setUserCategories(data?.data || []);
     } catch (error) {
       console.error("Category fetch error", error);
     } finally {
@@ -54,99 +44,71 @@ export default function CategoriesPage() {
 
   const filteredCategories = userCategories.filter((c) => c?.type === activeTab);
 
-
   const handleAdd = () => {
     setEditingCategory(null);
-
     setModalOpen(true);
   };
 
   const handleEdit = (category: any) => {
     setEditingCategory(category);
-
     setModalOpen(true);
   };
 
   return (
     <PageContainer
       title="Categories"
-      description="Manage your expense and investment categories"
+      description="Manage your expense, income and investment categories"
     >
       <div className="space-y-4">
         {/* Tabs */}
-
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as TransactionType)}
         >
-          <TabsList className="w-full max-w-xs">
+          <TabsList className="w-full max-w-md">
             <TabsTrigger value="expense" className="flex-1 gap-1.5">
-              <TrendingDown className="h-4 w-4" />
-              Expense
+              <TrendingDown className="h-4 w-4" /> Expense
             </TabsTrigger>
-
+            <TabsTrigger value="income" className="flex-1 gap-1.5">
+              <Banknote className="h-4 w-4" /> Income
+            </TabsTrigger>
             <TabsTrigger value="investment" className="flex-1 gap-1.5">
-              <TrendingUp className="h-4 w-4" />
-              Investment
+              <TrendingUp className="h-4 w-4" /> Investment
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {/* Category Grid */}
-
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <AnimatePresence mode="popLayout">
             {filteredCategories.map((cat, index) => {
-              const spent = cat?.totalAmountSpend
-
-              const limit = cat.monthlyBudget;
-
+              const spent = Number(cat?.totalAmountSpend || 0);
+              const limit = cat?.monthlyBudget;
               const pct = limit ? Math.min((spent / limit) * 100, 100) : 0;
+              const description = cat?.description || cat?.Description;
 
               return (
                 <motion.div
-                  key={cat._id}
+                  key={cat._id || cat.id}
                   layout
-                  initial={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                  }}
-                  transition={{
-                    delay: index * 0.05,
-                  }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ y: -2 }}
                 >
-                  <Card
-                    className="
-                group relative overflow-hidden
-                border-0 p-4 shadow-premium
-                "
-                  >
+                  <Card className="group relative overflow-hidden border-0 p-4 shadow-premium">
                     <div
-                      className="
-                absolute right-0 top-0
-                h-24 w-24 rounded-full
-                opacity-10 blur-2xl
-                "
-                      style={{
-                        backgroundColor: cat.color,
-                      }}
+                      className="absolute right-0 top-0 h-24 w-24 rounded-full opacity-10 blur-2xl"
+                      style={{ backgroundColor: cat.color }}
                     />
 
                     <div className="relative">
                       <div className="flex items-start justify-between">
                         <div
-                          className="
-                flex h-12 w-12
-                items-center justify-center
-                rounded-xl
-                "
+                          className="flex h-12 w-12 items-center justify-center rounded-xl"
                           style={{
                             backgroundColor: `${cat.color}20`,
-
                             color: cat.color,
                           }}
                         >
@@ -156,11 +118,7 @@ export default function CategoriesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="
-                h-8 w-8
-                opacity-100
-               
-                "
+                          className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
                           onClick={() => handleEdit(cat)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -169,37 +127,27 @@ export default function CategoriesPage() {
 
                       <h3 className="mt-3 font-semibold">{cat.name}</h3>
 
-                      {cat.Description && (
-                        <p
-                          className="
-                  mt-0.5
-                  text-xs
-                  text-muted-foreground
-                  line-clamp-1
-                "
-                        >
-                          {cat.Description}
+                      {description && (
+                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                          {description}
                         </p>
                       )}
 
-                      { limit ? (
+                      {/* Display calculations according to Tab type */}
+                      {activeTab === 'expense' && limit ? (
                         <div className="mt-3">
-                          <div
-                            className="
-                  flex justify-between
-                  text-xs
-                "
-                          >
+                          <div className="flex items-center justify-between text-xs">
                             <span className="text-muted-foreground">
-                              {formatCurrency(spent, currency)}/
-                              {formatCurrency(limit, currency)}
+                              {formatCurrency(spent, currency)} / {formatCurrency(limit, currency)}
                             </span>
-
-                            <span>{Math.round(pct)}%</span>
-                         
-                         
+                            <span className={cn(
+                              'font-medium',
+                              pct >= 100 ? 'text-red-500' : pct >= 80 ? 'text-yellow-500' : 'text-green-500'
+                            )}>
+                              {Math.round(pct)}%
+                            </span>
                           </div>
-                           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${pct}%` }}
@@ -211,16 +159,47 @@ export default function CategoriesPage() {
                             />
                           </div>
                         </div>
+                      ) : activeTab === 'income' && limit ? (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Target: {formatCurrency(limit, currency)}
+                            </span>
+                            <span className="text-muted-foreground">
+                              Earned: {formatCurrency(spent, currency)}
+                            </span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.5 }}
+                              className={cn(
+                                'h-full rounded-full',
+                                spent >= limit ? 'bg-sky-500' : 'bg-muted-foreground/40'
+                              )}
+                            />
+                          </div>
+                          {spent > limit ? (
+                            <div className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-2 py-1">
+                              <TrendingUp className="h-3 w-3 text-sky-500" />
+                              <span className="text-xs font-medium text-sky-500">
+                                Profit: {formatCurrency(spent - limit, currency)}
+                              </span>
+                            </div>
+                          ) : spent < limit ? (
+                            <div className="flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1">
+                              <TrendingDown className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {formatCurrency(limit - spent, currency)} to target
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : (
-                        <p
-                          className="
-                  mt-3
-                  text-xs
-                  text-muted-foreground
-                "
-                        >
-                          {activeTab === "investment" && !limit
-                            ? "Unlimited"
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          {activeTab === 'investment' && !limit
+                            ? 'Unlimited'
                             : formatCurrency(spent, currency)}
                         </p>
                       )}
@@ -234,40 +213,22 @@ export default function CategoriesPage() {
 
         {filteredCategories.length === 0 && !loading && (
           <div className="py-16 text-center">
-            <p
-              className="
-              text-sm
-              text-muted-foreground
-            "
-            >
+            <p className="text-sm text-muted-foreground">
               No {activeTab} categories yet
             </p>
           </div>
         )}
       </div>
 
-      {/* Add Button */}
-
+      {/* Floating Add Button */}
       <motion.button
-        initial={{
-          scale: 0,
-        }}
-        animate={{
-          scale: 1,
-        }}
-        whileTap={{
-          scale: 0.9,
-        }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.05 }}
         onClick={handleAdd}
-        className="
-        fixed bottom-24 right-4
-        z-30 flex h-14 w-14
-        items-center justify-center
-        rounded-full gradient-pay
-        shadow-glow
-        ring-4 ring-background
-        md:bottom-8 md:right-8
-        "
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full gradient-pay shadow-glow ring-4 ring-background md:bottom-8 md:right-8"
+        aria-label="Add category"
       >
         <Plus className="h-6 w-6 text-white" />
       </motion.button>
@@ -277,7 +238,7 @@ export default function CategoriesPage() {
         onOpenChange={setModalOpen}
         category={editingCategory}
         type={activeTab}
-        existingNames={userCategories?.map((c) => c.name)}
+        existingNames={userCategories?.map((c) => c.name) || []}
         onSaved={fetchCategories}
       />
     </PageContainer>
