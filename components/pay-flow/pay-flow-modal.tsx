@@ -13,6 +13,9 @@ import {
   CreditCard,
   Smartphone,
   CalendarIcon,
+  TrendingDown,
+  TrendingUp,
+  Banknote,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -34,6 +37,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getUserCategories } from "@/apiFasad/apiCalls/user";
 import { createTransaction } from "@/apiFasad/apiCalls/userTransaction";
+
 interface PayFlowModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,7 +57,6 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
   const [itemName, setItemName] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<Date>(new Date());
-  // const [receipt, setReceipt] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("upi");
   const [submitting, setSubmitting] = useState(false);
@@ -94,6 +97,7 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
       setAmount("");
       setDate(new Date());
       setReceipt(null);
+      setPreview(null);
       setNotes("");
       setPaymentMethod("upi");
       setErrors({});
@@ -147,7 +151,7 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
       errs.amount = "Amount must be greater than 0";
     }
 
-    if (selectedCategory?.monthlyBudget) {
+    if (type === "expense" && selectedCategory?.monthlyBudget) {
       const spent = Number(selectedCategory.totalAmountSpend ?? 0);
 
       if (spent + amt > selectedCategory.monthlyBudget) {
@@ -166,31 +170,32 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
     if (!selectedCategory) return;
     if (!validate()) return;
     setSubmitting(true);
-    console.log(selectedCategory);
 
     try {
       const formData = new FormData();
 
-formData.append("category_id", selectedCategory._id);
-formData.append("type", type);
-formData.append("item_name", itemName.trim());
-formData.append("amount", amount);
-formData.append("date", format(date, "yyyy-MM-dd"));
-formData.append("notes", notes.trim());
-formData.append("payment_method", paymentMethod);
+      formData.append("category_id", selectedCategory._id);
+      formData.append("type", type);
+      formData.append("item_name", itemName.trim());
+      formData.append("amount", amount);
+      formData.append("date", format(date, "yyyy-MM-dd"));
+      formData.append("notes", notes.trim());
+      formData.append("payment_method", paymentMethod);
 
-if (receipt) {
-  formData.append("receipt", receipt);
-}
+      if (receipt) {
+        formData.append("receipt", receipt);
+      }
 
-for (const [key, value] of formData.entries()) {
-  console.log(key, value);
-}
+      await createTransaction(formData);
 
-await createTransaction(formData);
-      toast.success(
-        `${type === "expense" ? "Expense" : "Investment"} added successfully`,
-      );
+      const label =
+        type === "expense"
+          ? "Expense"
+          : type === "income"
+            ? "Income"
+            : "Investment";
+
+      toast.success(`${label} added successfully`);
       onOpenChange(false);
     } catch (err) {
       toast.error("Failed to save transaction");
@@ -256,21 +261,38 @@ await createTransaction(formData);
                 <p className="mb-4 text-center text-sm text-muted-foreground">
                   Choose transaction type
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => {
                       setType("expense");
                       setStep("category");
                     }}
-                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-border p-6 transition-all hover:border-primary hover:bg-primary/5"
+                    className="group flex flex-col items-center gap-2 rounded-2xl border-2 border-border p-4 transition-all hover:border-primary hover:bg-primary/5"
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-500 transition-transform group-hover:scale-110">
-                      <ArrowLeft className="h-6 w-6 rotate-45" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-500 transition-transform group-hover:scale-110">
+                      <TrendingDown className="h-6 w-6" />
                     </div>
                     <div className="text-center">
-                      <p className="font-semibold">Expense</p>
+                      <p className="text-sm font-semibold">Expense</p>
                       <p className="text-xs text-muted-foreground">
                         Track spending
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setType("income");
+                      setStep("category");
+                    }}
+                    className="group flex flex-col items-center gap-2 rounded-2xl border-2 border-border p-4 transition-all hover:border-primary hover:bg-primary/5"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-500 transition-transform group-hover:scale-110">
+                      <Banknote className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold">Income</p>
+                      <p className="text-xs text-muted-foreground">
+                        Track earnings
                       </p>
                     </div>
                   </button>
@@ -279,13 +301,13 @@ await createTransaction(formData);
                       setType("investment");
                       setStep("category");
                     }}
-                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-border p-6 transition-all hover:border-primary hover:bg-primary/5"
+                    className="group flex flex-col items-center gap-2 rounded-2xl border-2 border-border p-4 transition-all hover:border-primary hover:bg-primary/5"
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/10 text-green-500 transition-transform group-hover:scale-110">
-                      <Check className="h-6 w-6" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-500/10 text-green-500 transition-transform group-hover:scale-110">
+                      <TrendingUp className="h-6 w-6" />
                     </div>
                     <div className="text-center">
-                      <p className="font-semibold">Investment</p>
+                      <p className="text-sm font-semibold">Investment</p>
                       <p className="text-xs text-muted-foreground">
                         Grow wealth
                       </p>
@@ -311,7 +333,7 @@ await createTransaction(formData);
                     const limit = cat.monthlyBudget;
                     return (
                       <button
-                        key={cat.id}
+                        key={cat._id ?? cat.id}
                         disabled={disabled}
                         onClick={() => {
                           setSelectedCategory(cat);
@@ -409,18 +431,31 @@ await createTransaction(formData);
                     </p>
                   </div>
 
-                  {selectedCategory.monthlyBudget === null && (
+                  {type === "income" && selectedCategory.monthlyBudget && (
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground">
-                        Total spend till
-                      </p>
-                      <p className="text-sm font-semibold text-green-500">
-                        {selectedCategory?.totalAmountSpend}
+                      <p className="text-xs text-muted-foreground">Target</p>
+                      <p className="text-sm font-semibold text-sky-500">
+                        {formatCurrency(
+                          selectedCategory.monthlyBudget,
+                          currency,
+                        )}
                       </p>
                     </div>
                   )}
 
-                  {selectedCategory.monthlyBudget && (
+                  {type !== "income" &&
+                    selectedCategory.monthlyBudget == null && (
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          Total spend till
+                        </p>
+                        <p className="text-sm font-semibold text-green-500">
+                          {selectedCategory?.totalAmountSpend}
+                        </p>
+                      </div>
+                    )}
+
+                  {type !== "income" && selectedCategory.monthlyBudget && (
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-sm font-semibold text-green-500">
@@ -596,7 +631,13 @@ await createTransaction(formData);
                 >
                   {submitting
                     ? "Saving..."
-                    : `Add ${type === "expense" ? "Expense" : "Investment"}`}
+                    : `Add ${
+                        type === "expense"
+                          ? "Expense"
+                          : type === "income"
+                            ? "Income"
+                            : "Investment"
+                      }`}
                 </Button>
               </motion.div>
             )}
