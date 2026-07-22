@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings, ChevronDown, Receipt } from 'lucide-react';
+import { Settings, ChevronDown, Receipt, ArrowLeftRight } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
 import { SummaryCards } from '@/components/dashboard/summary-cards';
 import { Charts } from '@/components/dashboard/charts';
@@ -13,17 +13,13 @@ import { TransactionsTable } from '@/components/dashboard/transactions-table';
 import { getStartOfMonth } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { TransactionType } from '@/lib/types';
 import { useAuthStore } from '@/zustandStore/login';
 import { getUserCategories } from '@/apiFasad/apiCalls/user';
 import { deteleTransaction, getTransaction } from '@/apiFasad/apiCalls/userTransaction';
 import { normalizeTransactions } from '@/lib/transformers';
-
 
 type TypeFilter = 'all' | TransactionType;
 
@@ -33,22 +29,20 @@ export default function DashboardPage() {
   const [rawTransactions, setRawTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deletLoad, setDeletLoading] = useState(false);
-  
+
   const user = useAuthStore((s) => s.user);
-  console.log(user);
-  
-  const handleDelete = async(id:string)=>{
+
+  const handleDelete = async (id: string) => {
     try {
       setDeletLoading(true);
-      const res = await deteleTransaction(id)
+      await deteleTransaction(id);
     } catch (error) {
-      
-    }
-    finally {
+      console.error('Failed to delete transaction', error);
+    } finally {
       setDeletLoading(false);
     }
+  };
 
-  }
   const fetchCategories = async () => {
     try {
       setLoading(true);
@@ -59,7 +53,7 @@ export default function DashboardPage() {
       setRawTransactions(transactionData?.data ?? []);
       setUserCategories(data?.data ?? []);
     } catch (error) {
-      console.error('Category fetch error', error);
+      console.error('Category/Transaction fetch error', error);
     } finally {
       setLoading(false);
     }
@@ -69,13 +63,7 @@ export default function DashboardPage() {
     fetchCategories();
   }, [deletLoad]);
 
-
-
-
-  // Normalize once here — raw MongoDB transaction docs (categoryId as object,
-  // `title`, `transactionDate`, `paymentMethod`) become a flat, consistent
-  // shape (`item_name`, `date`, `payment_method`, `category`) that every
-  // child component (table, charts, stats) can rely on.
+  // Normalize raw transaction docs into a consistent shape
   const transactions = useMemo(() => normalizeTransactions(rawTransactions), [rawTransactions]);
 
   const filteredTransactions = useMemo(() => {
@@ -84,44 +72,42 @@ export default function DashboardPage() {
   }, [transactions, typeFilter]);
 
   const stats = useMemo(() => {
-    const totalExpense = filteredTransactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalExpense = filteredTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const totalInvestment = filteredTransactions
-      .filter((t) => t.type === 'investment')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const totalInvestment = filteredTransactions.filter((t) => t.type === 'investment').reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const totalIncome = filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
 
     const monthStart = getStartOfMonth();
-    const thisMonthSpending =user?.monthlyBudget
+  
 
-    // NOTE: category docs use `monthlyBudget`, not `budget_limit` — fixed here.
-    const totalBudget = user?.monthlyBudget
+    const totalBudget = user?.monthlyBudget;
+    console.log(totalBudget);
 
-    const remainingBudget = Math.max(0, totalBudget - (totalExpense+totalInvestment));
+    const remainingBudget = Math.max(0, totalBudget - (totalExpense + totalInvestment));
 
-    return { totalExpense, totalInvestment, thisMonthSpending, remainingBudget };
-  }, [filteredTransactions, categories]);
+    return { totalExpense, totalInvestment, totalIncome, remainingBudget , totalBudget };
+  }, [filteredTransactions, user]);
 
   if (loading) {
     return (
       <PageContainer
-        title={`${user?.username}`}
-        description="Track your expenses and investments"
+        title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
+        description='Track your expenses and investments'
         action={<HeaderActions />}
       >
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl" />
+        <div className='space-y-6'>
+          <div className='grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5'>
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className='h-28 rounded-xl' />
             ))}
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className='grid gap-4 lg:grid-cols-2'>
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-72 rounded-xl" />
+              <Skeleton key={i} className='h-72 rounded-xl' />
             ))}
           </div>
-          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className='h-96 rounded-xl' />
         </div>
       </PageContainer>
     );
@@ -129,28 +115,25 @@ export default function DashboardPage() {
 
   return (
     <PageContainer
-      title={`${user?.username.toUpperCase()} `}
-      description="Track your expenses and investments"
+      title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
+      description='Track your expenses and investments'
       action={<HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />}
     >
-      <div className="space-y-6">
+      <div className='space-y-6'>
         <SummaryCards
           totalExpense={stats.totalExpense}
           totalInvestment={stats.totalInvestment}
+          totalIncome={stats.totalIncome}
           remainingBudget={stats.remainingBudget}
-          thisMonthSpending={stats.thisMonthSpending}
+          totalBudget={stats.totalBudget}
         />
 
-        {/* Real transactions (with dates) now go into Charts, so the
-            weekly/monthly/yearly toggle actually filters the data. */}
         <Charts transactions={filteredTransactions} />
 
-        {typeFilter !== 'investment' && (
-          <CategoryProgress categories={categories} transactions={filteredTransactions} type={"All"} />
-        )}
+        {typeFilter !== 'investment' && <CategoryProgress categories={categories} transactions={filteredTransactions} type='All' />}
 
         <div>
-          <h2 className="mb-3 text-lg font-semibold">Recent Transactions</h2>
+          <h2 className='mb-3 text-lg font-semibold'>Recent Transactions</h2>
           <TransactionsTable transactions={filteredTransactions} onDelete={handleDelete} />
         </div>
       </div>
@@ -158,19 +141,13 @@ export default function DashboardPage() {
   );
 }
 
-function HeaderActions({
-  typeFilter,
-  setTypeFilter,
-}: {
-  typeFilter?: TypeFilter;
-  setTypeFilter?: (v: TypeFilter) => void;
-}) {
+function HeaderActions({ typeFilter, setTypeFilter }: { typeFilter?: TypeFilter; setTypeFilter?: (v: TypeFilter) => void }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className='flex items-center gap-2'>
       {typeFilter !== undefined && setTypeFilter && <TypeFilterDropdown value={typeFilter} onChange={setTypeFilter} />}
-      <Link href="/settings">
-        <Button variant="outline" size="icon" className="rounded-xl shadow-premium md:hidden">
-          <Settings className="h-5 w-5" />
+      <Link href='/settings'>
+        <Button variant='outline' size='icon' className='rounded-xl shadow-premium md:hidden'>
+          <Settings className='h-5 w-5' />
         </Button>
       </Link>
     </div>
@@ -182,6 +159,7 @@ function TypeFilterDropdown({ value, onChange }: { value: TypeFilter; onChange: 
   const options: { value: TypeFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'expense', label: 'Expense' },
+    { value: 'income', label: 'Income' },
     { value: 'investment', label: 'Investment' },
   ];
   const current = options.find((o) => o.value === value);
@@ -189,38 +167,31 @@ function TypeFilterDropdown({ value, onChange }: { value: TypeFilter; onChange: 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-1.5 rounded-xl shadow-premium">
-          <span className="text-sm font-medium">{current?.label}</span>
-          <ChevronDown className="h-4 w-4 opacity-60" />
+        <Button variant='outline' className='gap-1.5 rounded-xl shadow-premium'>
+          <span className='text-sm font-medium'>{current?.label}</span>
+          <ChevronDown className='h-4 w-4 opacity-60' />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align='end' className='w-44'>
         {options.map((opt) => (
           <DropdownMenuItem
             key={opt.value}
             onClick={() => onChange(opt.value)}
-            className={cn(
-              'flex items-center justify-between',
-              value === opt.value && 'font-semibold text-primary'
-            )}
+            className={cn('flex items-center justify-between', value === opt.value && 'font-semibold text-primary')}
           >
             {opt.label}
-            {value === opt.value && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="h-2 w-2 rounded-full bg-primary"
-              />
-            )}
+            {value === opt.value && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className='h-2 w-2 rounded-full bg-primary' />}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => router.push('/receipts')}
-          className="flex items-center gap-2"
-        >
-          <Receipt className="h-4 w-4" />
+        <DropdownMenuItem onClick={() => router.push('/receipts')} className='flex items-center gap-2'>
+          <Receipt className='h-4 w-4' />
           Receipts
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => router.push('/transactions')} className='flex items-center gap-2'>
+          <ArrowLeftRight className='h-4 w-4' />
+          transactions
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
