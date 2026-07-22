@@ -1,7 +1,14 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { TrendingDown, TrendingUp, Wallet, CalendarDays, type LucideIcon } from 'lucide-react';
+import {
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  CalendarDays,
+  Banknote,
+  type LucideIcon,
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/format';
 import { useSettingsStore } from '@/lib/store';
@@ -17,27 +24,56 @@ interface SummaryCardProps {
   subtitle?: string;
 }
 
-function SummaryCard({ title, amount, icon: Icon, gradient, iconBg, delay = 0, subtitle }: SummaryCardProps) {
+function SummaryCard({
+  title,
+  amount,
+  icon: Icon,
+  gradient,
+  iconBg,
+  delay = 0,
+  subtitle,
+}: SummaryCardProps) {
   const { currency } = useSettingsStore();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
       whileHover={{ y: -4 }}
+      className="h-full"
     >
-      <Card className="relative overflow-hidden border-0 shadow-premium">
-        <div className={cn('absolute inset-0 opacity-5', gradient)} />
-        <div className="relative p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{title}</p>
-              <p className="mt-2 text-2xl font-bold tracking-tight">
-                {formatCurrency(amount, currency)}
+      <Card className="relative h-full overflow-hidden border border-border/50 bg-card shadow-sm">
+        {/* Soft background gradient tint */}
+        <div className={cn('absolute inset-0 opacity-10 pointer-events-none', gradient)} />
+
+        <div className="relative flex h-full flex-col justify-between p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {/* Card Title */}
+              <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400 leading-snug">
+                {title}
               </p>
-              {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+
+              {/* Card Amount - Ensures text color is explicitly white/black */}
+              <p className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white break-words">
+                {formatCurrency(amount ?? 0, currency)}
+              </p>
+
+              {subtitle && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {subtitle}
+                </p>
+              )}
             </div>
-            <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', iconBg)}>
+
+            {/* Icon Wrapper */}
+            <div
+              className={cn(
+                'flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl',
+                iconBg
+              )}
+            >
               <Icon className="h-5 w-5" />
             </div>
           </div>
@@ -50,18 +86,20 @@ function SummaryCard({ title, amount, icon: Icon, gradient, iconBg, delay = 0, s
 interface SummaryCardsProps {
   totalExpense: number;
   totalInvestment: number;
+  totalIncome: number;
   remainingBudget: number;
-  thisMonthSpending: number;
+  totalBudget: number;
 }
 
 export function SummaryCards({
   totalExpense,
   totalInvestment,
+  totalIncome,
   remainingBudget,
-  thisMonthSpending,
+  totalBudget,
 }: SummaryCardsProps) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 items-stretch">
       <SummaryCard
         title="Total Expense"
         amount={totalExpense}
@@ -69,6 +107,14 @@ export function SummaryCards({
         gradient="bg-red-500"
         iconBg="bg-red-500/10 text-red-500"
         delay={0}
+      />
+      <SummaryCard
+        title="Total Income"
+        amount={totalIncome}
+        icon={Banknote}
+        gradient="bg-sky-500"
+        iconBg="bg-sky-500/10 text-sky-500"
+        delay={0.05}
       />
       <SummaryCard
         title="Total Investment"
@@ -84,15 +130,15 @@ export function SummaryCards({
         icon={Wallet}
         gradient="bg-blue-500"
         iconBg="bg-blue-500/10 text-blue-500"
-        delay={0.2}
+        delay={0.15}
       />
       <SummaryCard
-        title="This Month"
-        amount={thisMonthSpending}
-        icon={CalendarDays}
-        gradient="bg-purple-500"
-        iconBg="bg-purple-500/10 text-purple-500"
-        delay={0.3}
+        title="Monthly Budget"
+        amount={totalBudget}
+        icon={Wallet}
+        gradient="bg-emerald-500"
+        iconBg="bg-emerald-500/10 text-emerald-500"
+        delay={0.25}
       />
     </div>
   );
