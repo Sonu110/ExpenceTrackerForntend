@@ -8,6 +8,8 @@ import { PWAProvider } from '@/components/providers/pwa-provider';
 import { OfflineDetector } from '@/components/providers/offline-detector';
 import { BudgetPromptModal } from '@/components/providers/budget-prompt-modal';
 
+import { AuthProvider } from '@/components/AuthProvider';
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -50,6 +52,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${jakarta.variable} font-sans antialiased`}>
+        <AuthProvider>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -63,6 +66,7 @@ export default function RootLayout({
             <Toaster position="top-center" />
           </PWAProvider>
         </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );
