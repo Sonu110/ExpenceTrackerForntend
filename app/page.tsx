@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings, ChevronDown, Receipt, ArrowLeftRight } from 'lucide-react';
+import { Settings, ChevronDown, Receipt, ArrowLeftRight, FolderOpen } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
 import { SummaryCards } from '@/components/dashboard/summary-cards';
 import { Charts } from '@/components/dashboard/charts';
@@ -90,10 +90,11 @@ export default function DashboardPage() {
   }, [filteredTransactions, user]);
 
   if (loading) {
+    
     return (
       <PageContainer
         title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
-        description='Track your expenses and investments'
+        description='Track your Finance of this Month '
         action={<HeaderActions />}
       >
         <div className='space-y-6'>
@@ -116,7 +117,7 @@ export default function DashboardPage() {
   return (
     <PageContainer
       title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
-      description='Track your expenses and investments'
+      description='Track your Finance of this Month '
       action={<HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />}
     >
       <div className='space-y-6'>
@@ -189,9 +190,9 @@ function TypeFilterDropdown({ value, onChange }: { value: TypeFilter; onChange: 
           Receipts
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => router.push('/transactions')} className='flex items-center gap-2'>
-          <ArrowLeftRight className='h-4 w-4' />
-          transactions
+        <DropdownMenuItem onClick={() => router.push('/categories')} className='flex items-center gap-2'>
+           <FolderOpen className="h-5 w-5" />
+            Categories
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -10,12 +10,14 @@ import {
   Plus,
   Wallet,
   Receipt,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePayFlow } from "@/components/pay-flow/pay-flow-provider";
 
 const desktopNavItems = [
   { href: "/", label: "Home", icon: Home },
+  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/categories", label: "Categories", icon: FolderOpen },
   { href: "/receipts", label: "Receipts", icon: Receipt },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -101,7 +103,7 @@ export function BottomNav() {
 
           {/* Categories — right */}
           <Link
-            href="/categories"
+            href="/transactions"
             className={cn(
               "flex w-16 flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors",
               pathname === "/categories"
@@ -109,8 +111,8 @@ export function BottomNav() {
                 : "text-muted-foreground",
             )}
           >
-            <FolderOpen className="h-5 w-5" />
-            Categories
+              <ArrowLeftRight className='h-4 w-4' />
+          transactions
           </Link>
         </div>
       </div>
