@@ -1,37 +1,39 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   PieChart, Pie, Cell, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { Card } from '@/components/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatCurrencyShort, formatCurrency } from '@/lib/format';
 import { useSettingsStore } from '@/lib/store';
-import type { ChartFilter, TransactionWithCategory } from '@/lib/types';
-import { normalizeTransactions, type RawTransaction } from '@/lib/transformers';
-import {
-  format, startOfWeek, startOfYear, eachWeekOfInterval, eachMonthOfInterval,
-  subDays, isWithinInterval,
-} from 'date-fns';
+import { format } from 'date-fns';
 
-interface ChartsProps {
-  // Accepts either raw MongoDB transaction docs or already-normalized ones.
-  transactions: (TransactionWithCategory | RawTransaction)[];
+interface DashboardCategory {
+  _id: string;
+  name: string;
+  color: string;
+  type: 'expense' | 'income' | 'investment';
+  totalAmountSpend: number;
 }
 
-export function Charts({ transactions: rawInput }: ChartsProps) {
-  const [filter, setFilter] = useState<ChartFilter>('monthly');
+interface DashboardChartRow {
+  date: string; // 'YYYY-MM-DD'
+  income: number;
+  expense: number;
+  investment: number;
+}
+
+interface ChartsProps {
+  categories: DashboardCategory[];
+  chartData: DashboardChartRow[];
+  typeFilter: 'all' | 'expense' | 'income' | 'investment';
+}
+
+export function Charts({ categories, chartData, typeFilter }: ChartsProps) {
   const { currency } = useSettingsStore();
-
-  // Normalize once so every calc below can rely on .date, .amount, .type, .category.name/color
-  const transactions = useMemo(() => normalizeTransactions(rawInput), [rawInput]);
-
-  const hasExpenseData = useMemo(() => transactions.some((t) => t.type === 'expense'), [transactions]);
-  const hasIncomeData = useMemo(() => transactions.some((t) => t.type === 'income'), [transactions]);
-  const hasInvestmentData = useMemo(() => transactions.some((t) => t.type === 'investment'), [transactions]);
 
   const {
     expenseByCategory,
@@ -41,100 +43,42 @@ export function Charts({ transactions: rawInput }: ChartsProps) {
     incomeTrend,
     investmentTrend,
   } = useMemo(() => {
-    const now = new Date();
-    const endDate: Date = now;
-    let startDate: Date;
+    const byType = (type: 'expense' | 'income' | 'investment') =>
+      categories
+        .filter((c) => c.type === type && c.totalAmountSpend > 0)
+        .map((c) => ({ name: c.name, value: c.totalAmountSpend, color: c.color }))
+        .sort((a, b) => b.value - a.value);
 
-    if (filter === 'weekly') {
-      startDate = subDays(now, 7 * 4); // last 4 weeks
-    } else if (filter === 'monthly') {
-      startDate = subDays(now, 30 * 6); // last 6 months
-    } else {
-      startDate = startOfYear(now); // year to date
-    }
-
-    const filtered = transactions.filter((t) => {
-      const d = new Date(t.date);
-      return d >= startDate && d <= endDate;
-    });
-
-    // Sum amounts per category for the selected period, split by type
-    const groupByCategory = (type: 'expense' | 'income' | 'investment') => {
-      const map = new Map<string, { name: string; value: number; color: string }>();
-      filtered
-        .filter((t) => t.type === type)
-        .forEach((t) => {
-          const key = t.category.name;
-          const existing = map.get(key);
-          if (existing) {
-            existing.value += Number(t.amount);
-          } else {
-            map.set(key, { name: key, value: Number(t.amount), color: t.category.color });
-          }
-        });
-      return Array.from(map.values()).sort((a, b) => b.value - a.value);
-    };
-
-    const expenseCategoryData = groupByCategory('expense');
-    const incomeCategoryData = groupByCategory('income');
-    const investmentCategoryData = groupByCategory('investment');
-
-    // Trend buckets
-    let intervals: Date[];
-    let formatStr: string;
-
-    if (filter === 'weekly') {
-      intervals = eachWeekOfInterval({ start: startDate, end: endDate });
-      formatStr = 'MMM d';
-    } else {
-      intervals = eachMonthOfInterval({ start: startDate, end: endDate });
-      formatStr = 'MMM';
-    }
-
-    const buildTrend = (type: 'expense' | 'income' | 'investment') =>
-      intervals.map((intervalStart) => {
-        const intervalEnd =
-          filter === 'weekly'
-            ? subDays(startOfWeek(intervalStart), -7)
-            : new Date(intervalStart.getFullYear(), intervalStart.getMonth() + 1, 0);
-
-        const total = filtered
-          .filter(
-            (t) =>
-              t.type === type &&
-              isWithinInterval(new Date(t.date), { start: intervalStart, end: intervalEnd })
-          )
-          .reduce((sum, t) => sum + Number(t.amount), 0);
-
-        return { name: format(intervalStart, formatStr), value: total };
-      });
+    const buildTrend = (key: 'expense' | 'income' | 'investment') =>
+      chartData.map((row) => ({
+        name: format(new Date(row.date), 'MMM d'),
+        value: row[key],
+      }));
 
     return {
-      expenseByCategory: expenseCategoryData,
-      incomeByCategory: incomeCategoryData,
-      investmentByCategory: investmentCategoryData,
+      expenseByCategory: byType('expense'),
+      incomeByCategory: byType('income'),
+      investmentByCategory: byType('investment'),
       expenseTrend: buildTrend('expense'),
       incomeTrend: buildTrend('income'),
       investmentTrend: buildTrend('investment'),
     };
-  }, [transactions, filter]);
+  }, [categories, chartData]);
 
+  const showExpense = typeFilter === 'all' || typeFilter === 'expense';
+  const showIncome = typeFilter === 'all' || typeFilter === 'income';
+  const showInvestment = typeFilter === 'all' || typeFilter === 'investment';
+
+  const hasExpenseData = showExpense && (expenseByCategory.length > 0 || expenseTrend.some((d) => d.value > 0));
+  const hasIncomeData = showIncome && (incomeByCategory.length > 0 || incomeTrend.some((d) => d.value > 0));
+  const hasInvestmentData = showInvestment && (investmentByCategory.length > 0 || investmentTrend.some((d) => d.value > 0));
+
+  // ...rest of the component is unchanged, just gate each section
+  // on showExpense / showIncome / showInvestment the same way hasExpenseData etc. already do
   return (
     <div className="space-y-4">
-      {/* Filter */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Analytics</h2>
-        <ToggleGroup
-          type="single"
-          value={filter}
-          onValueChange={(v) => v && setFilter(v as ChartFilter)}
-          variant="outline"
-          className="gap-1"
-        >
-          <ToggleGroupItem value="weekly" className="text-xs">Weekly</ToggleGroupItem>
-          <ToggleGroupItem value="monthly" className="text-xs">Monthly</ToggleGroupItem>
-          <ToggleGroupItem value="yearly" className="text-xs">Yearly</ToggleGroupItem>
-        </ToggleGroup>
+        <h2 className="text-lg font-semibold">Analytics — This Month</h2>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

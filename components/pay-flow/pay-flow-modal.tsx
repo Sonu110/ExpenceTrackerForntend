@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getUserCategories } from "@/apiFasad/apiCalls/user";
 import { createTransaction } from "@/apiFasad/apiCalls/userTransaction";
+import { useDashboardStore } from "@/zustandStore/dashboard";
 
 interface PayFlowModalProps {
   open: boolean;
@@ -52,6 +53,9 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
     null,
   );
   const { currency } = useSettingsStore();
+  const triggerRefresh = useDashboardStore(
+  (state) => state.triggerRefresh
+);
 
   // Form state
   const [itemName, setItemName] = useState("");
@@ -196,6 +200,7 @@ export function PayFlowModal({ open, onOpenChange }: PayFlowModalProps) {
             : "Investment";
 
       toast.success(`${label} added successfully`);
+      triggerRefresh()
       onOpenChange(false);
     } catch (err) {
       toast.error("Failed to save transaction");

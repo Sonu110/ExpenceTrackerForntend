@@ -1,34 +1,46 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Settings, ChevronDown, Receipt, ArrowLeftRight, FolderOpen } from 'lucide-react';
-import { PageContainer } from '@/components/layout/page-container';
-import { SummaryCards } from '@/components/dashboard/summary-cards';
-import { Charts } from '@/components/dashboard/charts';
-import { CategoryProgress } from '@/components/dashboard/category-progress';
-import { TransactionsTable } from '@/components/dashboard/transactions-table';
-import { getStartOfMonth } from '@/lib/format';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import type { TransactionType } from '@/lib/types';
-import { useAuthStore } from '@/zustandStore/login';
-import { getUserCategories } from '@/apiFasad/apiCalls/user';
-import { deteleTransaction, getTransaction } from '@/apiFasad/apiCalls/userTransaction';
-import { normalizeTransactions } from '@/lib/transformers';
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Settings,
+  ChevronDown,
+  Receipt,
+  ArrowLeftRight,
+  FolderOpen,
+} from "lucide-react";
+import { PageContainer } from "@/components/layout/page-container";
+import { SummaryCards } from "@/components/dashboard/summary-cards";
+import { Charts } from "@/components/dashboard/charts";
+import { CategoryProgress } from "@/components/dashboard/category-progress";
+import { TransactionsTable } from "@/components/dashboard/transactions-table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import type { TransactionType } from "@/lib/types";
+import { useAuthStore } from "@/zustandStore/login";
+import { deteleTransaction } from "@/apiFasad/apiCalls/userTransaction";
+import { normalizeTransactions } from "@/lib/transformers";
+import { getUserThisMonthData } from "@/apiFasad/apiCalls/user";
+import { useDashboardStore } from "@/zustandStore/dashboard";
 
-type TypeFilter = 'all' | TransactionType;
+type TypeFilter = "all" | TransactionType;
 
 export default function DashboardPage() {
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
-  const [categories, setUserCategories] = useState([]);
-  const [rawTransactions, setRawTransactions] = useState([]);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [deletLoad, setDeletLoading] = useState(false);
+const refresh = useDashboardStore((state) => state.refresh);
 
   const user = useAuthStore((s) => s.user);
 
@@ -37,78 +49,70 @@ export default function DashboardPage() {
       setDeletLoading(true);
       await deteleTransaction(id);
     } catch (error) {
-      console.error('Failed to delete transaction', error);
+      console.error("Failed to delete transaction", error);
     } finally {
-      setDeletLoading(false);
+      setDeletLoading(false); // triggers refetch via the effect below
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchDashboard = async () => {
     try {
       setLoading(true);
-
-      const data = await getUserCategories();
-      const transactionData = await getTransaction();
-
-      setRawTransactions(transactionData?.data ?? []);
-      setUserCategories(data?.data ?? []);
+      const res = await getUserThisMonthData();
+      setDashboard(res?.data ?? null);
     } catch (error) {
-      console.error('Category/Transaction fetch error', error);
+      console.error("Dashboard fetch error", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, [deletLoad]);
+    fetchDashboard();
+  }, [deletLoad,refresh]);
 
-  // Normalize raw transaction docs into a consistent shape
-  const transactions = useMemo(() => normalizeTransactions(rawTransactions), [rawTransactions]);
+  // The 5 recent transactions the backend already scoped to this month.
+  // normalizeTransactions keeps the shape the table/component expect.
+  const recentTransactions = useMemo(
+    () => normalizeTransactions(dashboard?.recentTransactions ?? []),
+    [dashboard],
+  );
 
-  const filteredTransactions = useMemo(() => {
-    if (typeFilter === 'all') return transactions;
-    return transactions.filter((t) => t.type === typeFilter);
-  }, [transactions, typeFilter]);
+  const filteredRecent = useMemo(() => {
+    if (typeFilter === "all") return recentTransactions;
+    return recentTransactions.filter((t) => t.type === typeFilter);
+  }, [recentTransactions, typeFilter]);
 
-  const stats = useMemo(() => {
-    const totalExpense = filteredTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const totalInvestment = filteredTransactions.filter((t) => t.type === 'investment').reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const totalIncome = filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const monthStart = getStartOfMonth();
-  
-
-    const totalBudget = user?.monthlyBudget;
-    console.log(totalBudget);
-
-    const remainingBudget = Math.max(0, totalBudget - (totalExpense + totalInvestment));
-
-    return { totalExpense, totalInvestment, totalIncome, remainingBudget , totalBudget };
-  }, [filteredTransactions, user]);
+  const totalBudget = user?.monthlyBudget;
+  const summary = dashboard?.summary ?? {
+    totalExpense: 0,
+    totalIncome: 0,
+    totalInvestment: 0,
+  };
+  const remainingBudget = Math.max(
+    0,
+    (totalBudget ?? 0) - (summary.totalExpense + summary.totalInvestment),
+  );
 
   if (loading) {
-    
     return (
       <PageContainer
-        title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
-        description='Track your Finance of this Month '
+        title={user?.username ? `${user.username.toUpperCase()}` : "Dashboard"}
+        description="Track your Finance of this Month "
         action={<HeaderActions />}
       >
-        <div className='space-y-6'>
-          <div className='grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5'>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
             {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className='h-28 rounded-xl' />
+              <Skeleton key={i} className="h-28 rounded-xl" />
             ))}
           </div>
-          <div className='grid gap-4 lg:grid-cols-2'>
+          <div className="grid gap-4 lg:grid-cols-2">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className='h-72 rounded-xl' />
+              <Skeleton key={i} className="h-72 rounded-xl" />
             ))}
           </div>
-          <Skeleton className='h-96 rounded-xl' />
+          <Skeleton className="h-96 rounded-xl" />
         </div>
       </PageContainer>
     );
@@ -116,83 +120,132 @@ export default function DashboardPage() {
 
   return (
     <PageContainer
-      title={user?.username ? `${user.username.toUpperCase()}` : 'Dashboard'}
-      description='Track your Finance of this Month '
-      action={<HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />}
+      title={user?.username ? `${user.username.toUpperCase()}` : "Dashboard"}
+      description="Track your Finance of this Month "
+      action={
+        <HeaderActions typeFilter={typeFilter} setTypeFilter={setTypeFilter} />
+      }
     >
-      <div className='space-y-6'>
+      <div className="space-y-6">
         <SummaryCards
-          totalExpense={stats.totalExpense}
-          totalInvestment={stats.totalInvestment}
-          totalIncome={stats.totalIncome}
-          remainingBudget={stats.remainingBudget}
-          totalBudget={stats.totalBudget}
+          totalExpense={summary.totalExpense}
+          totalInvestment={summary.totalInvestment}
+          totalIncome={summary.totalIncome}
+          remainingBudget={remainingBudget}
+          totalBudget={totalBudget}
         />
-
-        <Charts transactions={filteredTransactions} />
-
-        {typeFilter !== 'investment' && <CategoryProgress categories={categories} transactions={filteredTransactions} type='All' />}
-
+        {/* chartData is already aggregated per-day for this month:
+            [{ date, income, expense, investment }, ...] */}
+        <Charts
+          categories={dashboard?.categories ?? []}
+          chartData={dashboard?.chartData ?? []}
+          typeFilter={typeFilter}
+        />{" "}
+        {/* categories already include totalAmountSpend for this month */}
+        {typeFilter !== "investment" && (
+          <CategoryProgress
+            categories={dashboard?.categories ?? []}
+            transactions={filteredRecent}
+            type="All"
+          />
+        )}
         <div>
-          <h2 className='mb-3 text-lg font-semibold'>Recent Transactions</h2>
-          <TransactionsTable transactions={filteredTransactions} onDelete={handleDelete} />
+          <h2 className="mb-3 text-lg font-semibold">Recent Transactions</h2>
+          <TransactionsTable
+            transactions={filteredRecent}
+            recent={true}
+            onDelete={handleDelete}
+          />
         </div>
       </div>
     </PageContainer>
   );
 }
 
-function HeaderActions({ typeFilter, setTypeFilter }: { typeFilter?: TypeFilter; setTypeFilter?: (v: TypeFilter) => void }) {
+function HeaderActions({
+  typeFilter,
+  setTypeFilter,
+}: {
+  typeFilter?: TypeFilter;
+  setTypeFilter?: (v: TypeFilter) => void;
+}) {
   return (
-    <div className='flex items-center gap-2'>
-      {typeFilter !== undefined && setTypeFilter && <TypeFilterDropdown value={typeFilter} onChange={setTypeFilter} />}
-      <Link href='/settings'>
-        <Button variant='outline' size='icon' className='rounded-xl shadow-premium md:hidden'>
-          <Settings className='h-5 w-5' />
+    <div className="flex items-center gap-2">
+      {typeFilter !== undefined && setTypeFilter && (
+        <TypeFilterDropdown value={typeFilter} onChange={setTypeFilter} />
+      )}
+      <Link href="/settings">
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-xl shadow-premium md:hidden"
+        >
+          <Settings className="h-5 w-5" />
         </Button>
       </Link>
     </div>
   );
 }
 
-function TypeFilterDropdown({ value, onChange }: { value: TypeFilter; onChange: (v: TypeFilter) => void }) {
+function TypeFilterDropdown({
+  value,
+  onChange,
+}: {
+  value: TypeFilter;
+  onChange: (v: TypeFilter) => void;
+}) {
   const router = useRouter();
   const options: { value: TypeFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'expense', label: 'Expense' },
-    { value: 'income', label: 'Income' },
-    { value: 'investment', label: 'Investment' },
+    { value: "all", label: "All" },
+    { value: "expense", label: "Expense" },
+    { value: "income", label: "Income" },
+    { value: "investment", label: "Investment" },
   ];
   const current = options.find((o) => o.value === value);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' className='gap-1.5 rounded-xl shadow-premium'>
-          <span className='text-sm font-medium'>{current?.label}</span>
-          <ChevronDown className='h-4 w-4 opacity-60' />
+        <Button variant="outline" className="gap-1.5 rounded-xl shadow-premium">
+          <span className="text-sm font-medium">{current?.label}</span>
+          <ChevronDown className="h-4 w-4 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-44'>
+      <DropdownMenuContent align="end" className="w-44">
         {options.map((opt) => (
           <DropdownMenuItem
             key={opt.value}
             onClick={() => onChange(opt.value)}
-            className={cn('flex items-center justify-between', value === opt.value && 'font-semibold text-primary')}
+            className={cn(
+              "flex items-center justify-between",
+              value === opt.value && "font-semibold text-primary",
+            )}
           >
             {opt.label}
-            {value === opt.value && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className='h-2 w-2 rounded-full bg-primary' />}
+            {value === opt.value && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="h-2 w-2 rounded-full bg-primary"
+              />
+            )}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push('/receipts')} className='flex items-center gap-2'>
-          <Receipt className='h-4 w-4' />
+        <DropdownMenuItem
+          onClick={() => router.push("/receipts")}
+          className="flex items-center gap-2"
+        >
+          <Receipt className="h-4 w-4" />
           Receipts
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => router.push('/categories')} className='flex items-center gap-2'>
-           <FolderOpen className="h-5 w-5" />
-            Categories
+        <DropdownMenuItem
+          onClick={() => router.push("/categories")}
+          className="flex items-center gap-2"
+        >
+          <FolderOpen className="h-5 w-5" />
+          Categories
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
