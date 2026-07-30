@@ -9,6 +9,8 @@ export const ENDPOINTS = {
     userCategories: "/api/auth/categories",
     userTransaction: "/api/auth/transactions",
     userReceipt: "/api/auth/receipts",
+    userUpdate: "/api/auth/update",
+    getUserThisMonthData :"/api/auth/dashboard"
     
   },
  

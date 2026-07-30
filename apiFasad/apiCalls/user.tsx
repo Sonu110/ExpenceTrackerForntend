@@ -30,3 +30,8 @@ export const deleteCategory = (id:string) =>
 export const updateCategory = (id:string,payload:any) =>
   PUT(`${ENDPOINTS.USERS.userCategories}/${id}` ,payload);
 
+export const updateUser = (payload:any) =>
+  PUT(`${ENDPOINTS.USERS.userUpdate}`,payload);
+export const getUserThisMonthData = () =>
+  GET(`${ENDPOINTS.USERS.getUserThisMonthData}`);
+

@@ -59,11 +59,12 @@ import { TransactionActionMenu } from "./TransactionActionMenu";
 interface TransactionsTableProps {
   // Accepts either raw MongoDB transaction docs or already-normalized ones.
   onDelete :(id:String)=> void,
+  recent:boolean,
   transactions: (TransactionWithCategory | RawTransaction)[];
 }
 
 export function TransactionsTable({
-  transactions: rawInput, onDelete
+  transactions: rawInput, onDelete , recent=false
 }: TransactionsTableProps) {
   const { currency } = useSettingsStore();
  
@@ -174,6 +175,8 @@ export function TransactionsTable({
     <>
       <Card className="border-0 shadow-premium">
         {/* Toolbar */}
+        {
+          !recent &&
         <div className="flex flex-col gap-3 border-b border-border p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
@@ -282,6 +285,7 @@ export function TransactionsTable({
             </div>
           </div>
         </div>
+        }
 
         {/* Table - Desktop */}
         <div className="hidden overflow-x-auto md:block">

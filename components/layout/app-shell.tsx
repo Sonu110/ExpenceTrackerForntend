@@ -5,7 +5,7 @@ import { type ReactNode } from 'react';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { PayFlowProvider } from '@/components/pay-flow/pay-flow-provider';
 
-const authRoutes = ['/login', '/register'];
+const authRoutes = ['/login', '/register','/forgot-password'];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

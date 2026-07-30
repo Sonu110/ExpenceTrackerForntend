@@ -6,7 +6,8 @@ import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import {
   User, DollarSign, Moon, Sun, Bell, Download, DatabaseBackup,
-  RotateCcw, Info, Mail, Check, LogOut, type LucideIcon,
+  RotateCcw, Info, Mail, Check, LogOut, Pencil, Loader2, Wallet,
+  type LucideIcon,
 } from 'lucide-react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
@@ -28,6 +29,8 @@ import { dummyCategories } from '@/data/categories';
 import { dummyTransactions } from '@/data/transactions';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/zustandStore/login';
+import { updateUser } from '@/apiFasad/apiCalls/user';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -36,9 +39,91 @@ export default function SettingsPage() {
   const { transactions, categories, refetch } = useAllData();
   const [mounted, setMounted] = useState(false);
 
+  // Pull the logged-in user and (assumed) setter from the auth store.
+  // Rename `setUser` here if your store's action has a different name.
+  const user = useAuthStore((e) => e.user);
+  const setUser = useAuthStore((e: any) => e.setUser);
+
+  // Edit-mode state for the Profile section
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    currency: 'INR',
+    monthlyBudget: 0,
+  });
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Populate the form whenever the user data becomes available / changes
+  useEffect(() => {
+    if (user) {
+      setForm({
+        username: user.username ?? '',
+        email: user.email ?? '',
+        currency: user.currency ?? 'INR',
+        monthlyBudget: user.monthlyBudget ?? 0,
+      });
+    }
+  }, [user]);
+
+  const handleFieldChange = (field: keyof typeof form, value: string | number) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCancelEdit = () => {
+    // Revert any unsaved changes back to the last known user data
+    if (user) {
+      setForm({
+        username: user.username ?? '',
+        email: user.email ?? '',
+        currency: user.currency ?? 'INR',
+        monthlyBudget: user.monthlyBudget ?? 0,
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user?._id) {
+      toast.error('No user found to update');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // NOTE: adjust the URL/base path and headers (e.g. Authorization token)
+      // to match however your app talks to the backend.
+      const payload = {
+          _id: user._id,
+          username: form.username,
+          email: form.email,
+          currency: form.currency,
+          monthlyBudget: Number(form.monthlyBudget),
+        }
+      
+      const res = await updateUser(payload)
+
+
+      // Keep the local settings store's currency in sync too
+      settings.setCurrency(form.currency);
+
+      // Update the cached user in the auth store, if a setter exists
+      setUser?.(res?.user ?? { ...user, ...form });
+
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleExportCSV = () => {
     const headers = ['Date', 'Type', 'Category', 'Item', 'Amount', 'Status', 'Notes'];
@@ -83,6 +168,7 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     settings.resetSettings();
+    localStorage.removeItem('token')
     router.push('/login');
     toast.success('Logged out successfully');
   };
@@ -91,14 +177,59 @@ export default function SettingsPage() {
     <PageContainer title="Settings" description="Manage your preferences and data">
       <div className="mx-auto max-w-2xl space-y-4">
         {/* Profile */}
-        <SettingsSection icon={User} title="Profile" delay={0}>
+        <SettingsSection
+          icon={User}
+          title="Profile"
+          delay={0}
+          action={
+            !isEditing ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 px-2 text-xs"
+                onClick={() => setIsEditing(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 px-2.5 text-xs"
+                  onClick={handleUpdateProfile}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )
+          }
+        >
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="name"
-                value={settings.profileName}
-                onChange={(e) => settings.setProfileName(e.target.value)}
+                id="username"
+                value={form.username}
+                disabled={!isEditing}
+                onChange={(e) => handleFieldChange('username', e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -108,8 +239,9 @@ export default function SettingsPage() {
                 <Input
                   id="email"
                   type="email"
-                  value={settings.profileEmail}
-                  onChange={(e) => settings.setProfileEmail(e.target.value)}
+                  value={form.email}
+                  disabled={!isEditing}
+                  onChange={(e) => handleFieldChange('email', e.target.value)}
                   className="pl-9"
                 />
               </div>
@@ -117,12 +249,43 @@ export default function SettingsPage() {
           </div>
         </SettingsSection>
 
+        {/* Monthly Budget */}
+        <SettingsSection icon={Wallet} title="Monthly Budget" delay={0.03}>
+          <div className="space-y-1.5">
+            <Label htmlFor="monthlyBudget">Set your monthly budget</Label>
+            <div className="relative">
+               < div className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" >
+              {CURRENCIES.find((e) => e.code === form.currency)?.symbol}
+              </div>
+              <Input
+                id="monthlyBudget"
+                type="number"
+                min={0}
+                value={form.monthlyBudget}
+                disabled={!isEditing}
+                onChange={(e) => handleFieldChange('monthlyBudget', Number(e.target.value))}
+                className="pl-9"
+                placeholder="e.g. 10000"
+              />
+            </div>
+            {!isEditing && (
+              <p className="text-xs text-muted-foreground">
+                Click Edit in the Profile section above to change this.
+              </p>
+            )}
+          </div>
+        </SettingsSection>
+
         {/* Currency */}
         <SettingsSection icon={DollarSign} title="Currency" delay={0.05}>
           <div className="space-y-1.5">
             <Label>Select your preferred currency</Label>
-            <Select value={settings.currency} onValueChange={settings.setCurrency}>
-              <SelectTrigger>
+            <Select
+              value={form.currency}
+              disabled={!isEditing}
+              onValueChange={(val) => handleFieldChange('currency', val)}
+            >
+              <SelectTrigger disabled={!isEditing}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -133,6 +296,11 @@ export default function SettingsPage() {
                 ))}
               </SelectContent>
             </Select>
+            {!isEditing && (
+              <p className="text-xs text-muted-foreground">
+                Click Edit in the Profile section above to change this.
+              </p>
+            )}
           </div>
         </SettingsSection>
 
@@ -256,11 +424,13 @@ function SettingsSection({
   icon: Icon,
   title,
   delay,
+  action,
   children,
 }: {
   icon: LucideIcon;
   title: string;
   delay: number;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -270,11 +440,14 @@ function SettingsSection({
       transition={{ delay, duration: 0.3 }}
     >
       <Card className="border-0 p-5 shadow-premium">
-        <div className="mb-4 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4 w-4" />
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Icon className="h-4 w-4" />
+            </div>
+            <h2 className="text-sm font-semibold">{title}</h2>
           </div>
-          <h2 className="text-sm font-semibold">{title}</h2>
+          {action}
         </div>
         {children}
       </Card>
