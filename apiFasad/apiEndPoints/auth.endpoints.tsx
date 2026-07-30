@@ -12,8 +12,9 @@ export const ENDPOINTS = {
     userUpdate: "/api/auth/update",
     getUserThisMonthData :"/api/auth/dashboard",
     Userforgotpassword :"/api/auth/forgot-password",
-    getUserThisMonthData :"/api/auth/dashboard"
-    getUserThisMonthData :"/api/auth/dashboard"
+    getResetPassword :"/api/auth/reset-password",
+    getVerifyOtp :"/api/auth/verify-otp"
+    
     
   },
  

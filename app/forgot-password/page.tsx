@@ -14,31 +14,11 @@ import {
   InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator,
 } from '@/components/ui/input-otp';
 import { toast } from 'sonner';
+import { ForgotPassword, UsergetResetPassword, userGetVerifyOtp } from '@/apiFasad/apiCalls/user';
 
 type Step = 'email' | 'otp' | 'password' | 'done';
 
-// Small helper so all three calls share the same error-parsing logic.
-// Adjust the base URL / headers here if your app uses an axios instance instead.
-async function callApi(path: string, body: Record<string, unknown>) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
 
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    // response had no JSON body
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.message || data?.error || 'Something went wrong. Please try again.');
-  }
-
-  return data;
-}
 
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<Step>('email');
@@ -63,7 +43,7 @@ export default function ForgotPasswordPage() {
     }, 1000);
   };
 
-  // Step 1: send OTP to the user's email via /email
+  // Step 1: send OTP to the user's email
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
@@ -77,7 +57,8 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      await callApi('/email', { email });
+      const data ={ email }
+      await ForgotPassword(data );
       setStep('otp');
       startResendTimer();
       toast.success('OTP sent successfully', {
@@ -90,7 +71,7 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  // Step 2: verify the code the user received in Gmail via /otp
+  // Step 2: verify the code the user received in email
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -100,7 +81,8 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      await callApi('/otp', { email, otp });
+      const data ={ email, otp };
+      await userGetVerifyOtp(data );
       setStep('password');
       toast.success('OTP verified successfully');
     } catch (err: any) {
@@ -113,7 +95,8 @@ export default function ForgotPasswordPage() {
   const handleResendOtp = async () => {
     if (resendTimer > 0) return;
     try {
-      await callApi('/email', { email });
+      const data = {email};
+      await ForgotPassword(data);
       startResendTimer();
       toast.success('OTP resent successfully', {
         description: `Please check ${email} for the new code`,
@@ -123,7 +106,7 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  // Step 3: set the new password via /password
+  // Step 3: set the new password
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
@@ -137,7 +120,8 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      await callApi('/password', { email, otp, password });
+      const data ={ email, otp, password }
+      await UsergetResetPassword(data);
       setStep('done');
       toast.success('Password reset successfully');
     } catch (err: any) {
