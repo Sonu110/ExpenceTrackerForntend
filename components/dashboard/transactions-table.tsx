@@ -50,7 +50,7 @@ export function TransactionsTable({
 
   const categories = useMemo(() => {
     const map = new Map();
-    categoriesData.forEach((item) => {
+    categoriesData?.forEach((item) => {
       map.set(item.categoryId, item.name);
     });
     return [...map.entries()].map(([id, name]) => ({ id, name }));
